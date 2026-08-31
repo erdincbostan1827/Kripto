@@ -23,9 +23,25 @@ REPORT = ROOT / "reports" / "dependency_lock_bootstrap.json"
 TRANSACTION_JOURNAL = ".dependency-lock-bootstrap.transaction.json"
 TRANSACTION_PREFIX = ".lock-bootstrap-txn-"
 TARGETS = {"uv": Path("uv.lock"), "npm": Path("frontend/package-lock.json")}
-LOCK_RESOLUTION_TIMEOUT_SECONDS = 600
+LOCK_RESOLUTION_TIMEOUT_SECONDS = 600.0
+MIN_LOCK_RESOLUTION_TIMEOUT_SECONDS = 0.1
+MAX_LOCK_RESOLUTION_TIMEOUT_SECONDS = 3600.0
 PROCESS_TREE_GRACE_SECONDS = 2.0
 
+
+
+
+def _validated_timeout_seconds(raw: float | int | str) -> float:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("LOCK_RESOLUTION_TIMEOUT_INVALID") from exc
+    if not (MIN_LOCK_RESOLUTION_TIMEOUT_SECONDS <= value <= MAX_LOCK_RESOLUTION_TIMEOUT_SECONDS):
+        raise ValueError(
+            f"LOCK_RESOLUTION_TIMEOUT_OUT_OF_RANGE:{value}:"
+            f"{MIN_LOCK_RESOLUTION_TIMEOUT_SECONDS}-{MAX_LOCK_RESOLUTION_TIMEOUT_SECONDS}"
+        )
+    return value
 
 def _digest(path: Path) -> str | None:
     return sha256(path.read_bytes()).hexdigest() if path.is_file() else None
@@ -354,6 +370,7 @@ def bootstrap(*, root: Path = ROOT, offline: bool = False) -> dict:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "classification": "DEPENDENCY_LOCK_BOOTSTRAP_RESULT",
             "offline": offline,
+            "resolver_timeout_seconds": LOCK_RESOLUTION_TIMEOUT_SECONDS,
             "committed": committed,
             "atomic_policy": "BOTH_OR_NONE",
             "atomic_mechanism": "DURABLE_ROLLBACK_JOURNAL",
@@ -370,13 +387,20 @@ def bootstrap(*, root: Path = ROOT, offline: bool = False) -> dict:
             shutil.rmtree(tx_dir, ignore_errors=True)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    global LOCK_RESOLUTION_TIMEOUT_SECONDS
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true", help="Resolve only from local caches; never use registries.")
     parser.add_argument("--recover-only", action="store_true", help="Recover an interrupted promotion without resolving dependencies.")
+    parser.add_argument(
+        "--timeout-seconds",
+        default=LOCK_RESOLUTION_TIMEOUT_SECONDS,
+        help=f"Per-resolver timeout in seconds ({MIN_LOCK_RESOLUTION_TIMEOUT_SECONDS}-{MAX_LOCK_RESOLUTION_TIMEOUT_SECONDS}).",
+    )
     parser.add_argument("--report", type=Path, default=REPORT)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
+        LOCK_RESOLUTION_TIMEOUT_SECONDS = _validated_timeout_seconds(args.timeout_seconds)
         if args.recover_only:
             recovery = recover_incomplete_transaction(ROOT)
             payload = {
