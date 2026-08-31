@@ -1,0 +1,47 @@
+profile_id: CTP-V51-CANONICAL-2026-08
+release: 0.3.0
+runtime:
+  language: Python 3.12.14
+  async_model: FastAPI async request layer; deterministic synchronous financial core
+  api: FastAPI
+scheduler_worker:
+  selected: in-process asyncio for execution-critical loops; Celery/Redis reserved for non-critical research jobs
+  financial_event_truth: PostgreSQL transactional outbox
+persistence:
+  database: PostgreSQL 18.6
+  driver: psycopg 3 / SQLAlchemy 2 synchronous transaction boundary
+  migration: Alembic expand-contract
+cache:
+  redis: 8.10.1
+  role: bounded cache, coordination, fan-out; never sole financial source of truth
+frontend:
+  react: 19.2.8
+  typescript: 7.0.2
+  vite: 8.2.2
+  material_ui: 9.3.1
+  server_state: TanStack Query 5.102.3
+  package_manager: npm with mandatory package-lock.json
+proxy:
+  selected: nginx 1.30.4 stable
+security:
+  session: opaque server-side session token, HttpOnly/Secure/SameSite transport in production
+  password_hashing: Argon2id
+  secret_provider_dev: .env
+  secret_provider_prod: Docker secrets or external KMS/Vault equivalent
+observability:
+  metrics: Prometheus 3.14.0
+  dashboard: Grafana 13.2.0
+  tracing: OpenTelemetry integration target; NOT_TESTED until dependency/runtime verification
+deployment:
+  default: SINGLE_NODE_PRODUCTION with external encrypted backup and watchdog
+  ha: ACTIVE_STANDBY_FENCED, architecture-supported but NOT_TESTED
+exchange_matrix:
+  - exchange: Binance
+    market_type: SPOT
+    mock_paper: PASS
+    public_rest_contract: PASS_WITH_MOCK_TRANSPORT
+    credentialed_testnet: NOT_TESTED
+    live: BLOCKED
+  - exchange: Binance
+    market_type: PERPETUAL
+    status: UNSUPPORTED_IN_RELEASE_0_3_0

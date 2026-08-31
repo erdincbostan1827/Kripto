@@ -1,0 +1,329 @@
+{
+  "blocker_class_counts": {
+    "DESKTOP_BUILD_ENVIRONMENT": 1,
+    "EXTERNAL_CREDENTIALS": 13,
+    "EXTERNAL_ENVIRONMENT_IDENTITY": 27,
+    "EXTERNAL_HA_DRILL_CONTRACT": 5,
+    "EXTERNAL_IMMUTABLE_STORAGE_CONTRACT": 1,
+    "EXTERNAL_RECOVERY_DRILL_CONTRACT": 8,
+    "EXTERNAL_RESTART_DRILL_CONTRACT": 4,
+    "HOST_RUNTIME_CAPABILITY": 10,
+    "HOST_TOOLING": 1,
+    "REAL_BROWSER_ENVIRONMENT": 43,
+    "REGISTRY_OR_LOCK_RESOLUTION": 46,
+    "TRUSTED_CI": 15,
+    "TRUSTED_LEDGER_CONTRACT": 7,
+    "TRUSTED_SIGNING_CONTRACT": 9,
+    "TRUSTED_SIGNING_IDENTITY": 2,
+    "TRUST_CONTRACT": 27
+  },
+  "classification": "PHASE176_READINESS_DIAGNOSTIC_NOT_ACCEPTANCE_EVIDENCE",
+  "current_host": {
+    "git_available": true,
+    "python_available": true
+  },
+  "generated_at": "2026-08-31T14:24:09.884536+00:00",
+  "open_requirement_count": 100,
+  "p0_open_requirement_count": 42,
+  "preflight": {
+    "all_external_prerequisites_ready": false,
+    "classification": "EXTERNAL_ACCEPTANCE_PREFLIGHT_ONLY_NOT_ACCEPTANCE_EVIDENCE",
+    "groups": {
+      "challenge_trust_contract": false,
+      "container_runtime": false,
+      "credentialed_testnet": false,
+      "dependency_locks": false,
+      "environment_identity": false,
+      "ha_contract": false,
+      "ledger_checkpoint_contract": false,
+      "pitr_contract": false,
+      "provenance_sign_verify_contract": false,
+      "restart_contract": false,
+      "signing_tooling": false,
+      "transferred_supply_chain_contract": true,
+      "worm_contract": false
+    }
+  },
+  "profiles": {
+    "dependency-locks": {
+      "blocker_classes": [
+        "REGISTRY_OR_LOCK_RESOLUTION"
+      ],
+      "blocking_reasons": [
+        "group:dependency_locks"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile locks --confirm-real-target"
+      ],
+      "open_requirement_count": 2,
+      "p0_open_requirement_count": 0,
+      "remediation": [
+        "python scripts/bootstrap_dependency_locks.py && python scripts/verify_source_locks.py"
+      ]
+    },
+    "desktop-build": {
+      "blocker_classes": [
+        "DESKTOP_BUILD_ENVIRONMENT",
+        "HOST_TOOLING",
+        "REGISTRY_OR_LOCK_RESOLUTION"
+      ],
+      "blocking_reasons": [
+        "external:desktop_build_or_signing_runner",
+        "group:dependency_locks",
+        "tool:cargo"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external/tauri_build_readiness.py --confirm-real-target"
+      ],
+      "open_requirement_count": 1,
+      "p0_open_requirement_count": 0,
+      "remediation": [
+        "Install the required build tool on the isolated acceptance host and re-run preflight.",
+        "Run the desktop build/signing acceptance on a supported desktop build runner.",
+        "python scripts/bootstrap_dependency_locks.py && python scripts/verify_source_locks.py"
+      ]
+    },
+    "frontend-browser": {
+      "blocker_classes": [
+        "REAL_BROWSER_ENVIRONMENT",
+        "REGISTRY_OR_LOCK_RESOLUTION"
+      ],
+      "blocking_reasons": [
+        "external:real_browser_matrix",
+        "group:dependency_locks"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external/frontend_browser_acceptance.py --confirm-real-target"
+      ],
+      "open_requirement_count": 43,
+      "p0_open_requirement_count": 0,
+      "remediation": [
+        "Run the canonical browser acceptance matrix in a real supported browser environment.",
+        "python scripts/bootstrap_dependency_locks.py && python scripts/verify_source_locks.py"
+      ]
+    },
+    "ha": {
+      "blocker_classes": [
+        "EXTERNAL_ENVIRONMENT_IDENTITY",
+        "EXTERNAL_HA_DRILL_CONTRACT",
+        "TRUST_CONTRACT"
+      ],
+      "blocking_reasons": [
+        "group:challenge_trust_contract",
+        "group:environment_identity",
+        "group:ha_contract"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target"
+      ],
+      "open_requirement_count": 5,
+      "p0_open_requirement_count": 5,
+      "remediation": [
+        "Configure HA_DRILL_COMMAND and HA_EVIDENCE_JSON on the real HA environment.",
+        "Generate and verify a current release challenge using the configured external trust verifier.",
+        "Set ACCEPTANCE_ENVIRONMENT_ID and a 64-hex ACCEPTANCE_TOPOLOGY_HASH on the real acceptance host."
+      ]
+    },
+    "pitr": {
+      "blocker_classes": [
+        "EXTERNAL_ENVIRONMENT_IDENTITY",
+        "EXTERNAL_RECOVERY_DRILL_CONTRACT",
+        "TRUST_CONTRACT"
+      ],
+      "blocking_reasons": [
+        "group:challenge_trust_contract",
+        "group:environment_identity",
+        "group:pitr_contract"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target"
+      ],
+      "open_requirement_count": 8,
+      "p0_open_requirement_count": 8,
+      "remediation": [
+        "Configure PITR_DRILL_COMMAND and PITR_EVIDENCE_JSON on the real recovery environment.",
+        "Generate and verify a current release challenge using the configured external trust verifier.",
+        "Set ACCEPTANCE_ENVIRONMENT_ID and a 64-hex ACCEPTANCE_TOPOLOGY_HASH on the real acceptance host."
+      ]
+    },
+    "provenance": {
+      "blocker_classes": [
+        "TRUSTED_CI",
+        "TRUSTED_LEDGER_CONTRACT",
+        "TRUSTED_SIGNING_CONTRACT"
+      ],
+      "blocking_reasons": [
+        "external:trusted_ci_provenance",
+        "group:ledger_checkpoint_contract",
+        "group:provenance_sign_verify_contract"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target"
+      ],
+      "open_requirement_count": 7,
+      "p0_open_requirement_count": 7,
+      "remediation": [
+        "Provide ledger checkpoint signing and verification commands with trusted identity.",
+        "Provide the trusted provenance/signing verification contract outside the source package.",
+        "Run the canonical CI supply-chain/provenance workflow and transfer checksum-bound evidence."
+      ]
+    },
+    "restart-drills": {
+      "blocker_classes": [
+        "EXTERNAL_RESTART_DRILL_CONTRACT",
+        "HOST_RUNTIME_CAPABILITY"
+      ],
+      "blocking_reasons": [
+        "group:container_runtime",
+        "group:restart_contract"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target"
+      ],
+      "open_requirement_count": 4,
+      "p0_open_requirement_count": 4,
+      "remediation": [
+        "Configure restart drill command/evidence against real Redis/PostgreSQL services.",
+        "Provide Docker on the isolated acceptance host, then run the mapped runtime profile."
+      ]
+    },
+    "runtime": {
+      "blocker_classes": [
+        "HOST_RUNTIME_CAPABILITY"
+      ],
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target"
+      ],
+      "open_requirement_count": 6,
+      "p0_open_requirement_count": 2,
+      "remediation": [
+        "Provide Docker on the isolated acceptance host, then run the mapped runtime profile."
+      ]
+    },
+    "signing": {
+      "blocker_classes": [
+        "TRUSTED_SIGNING_CONTRACT",
+        "TRUSTED_SIGNING_IDENTITY"
+      ],
+      "blocking_reasons": [
+        "external:trusted_signing_identity",
+        "group:signing_tooling"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target"
+      ],
+      "open_requirement_count": 2,
+      "p0_open_requirement_count": 2,
+      "remediation": [
+        "Provide a trusted signing identity and verify signatures through the canonical contract.",
+        "Provide the trusted provenance/signing verification contract outside the source package."
+      ]
+    },
+    "supply-chain": {
+      "blocker_classes": [
+        "TRUSTED_CI"
+      ],
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target"
+      ],
+      "open_requirement_count": 8,
+      "p0_open_requirement_count": 8,
+      "remediation": [
+        "Run the canonical CI supply-chain/provenance workflow and transfer checksum-bound evidence."
+      ]
+    },
+    "testnet-campaigns": {
+      "blocker_classes": [
+        "EXTERNAL_CREDENTIALS",
+        "EXTERNAL_ENVIRONMENT_IDENTITY",
+        "TRUST_CONTRACT"
+      ],
+      "blocking_reasons": [
+        "group:challenge_trust_contract",
+        "group:credentialed_testnet",
+        "group:environment_identity"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target"
+      ],
+      "open_requirement_count": 13,
+      "p0_open_requirement_count": 5,
+      "remediation": [
+        "Generate and verify a current release challenge using the configured external trust verifier.",
+        "Provide isolated Binance testnet credentials through environment variables; never copy values into evidence.",
+        "Set ACCEPTANCE_ENVIRONMENT_ID and a 64-hex ACCEPTANCE_TOPOLOGY_HASH on the real acceptance host."
+      ]
+    },
+    "worm": {
+      "blocker_classes": [
+        "EXTERNAL_ENVIRONMENT_IDENTITY",
+        "EXTERNAL_IMMUTABLE_STORAGE_CONTRACT",
+        "TRUST_CONTRACT"
+      ],
+      "blocking_reasons": [
+        "group:challenge_trust_contract",
+        "group:environment_identity",
+        "group:worm_contract"
+      ],
+      "classification": "READINESS_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "commands": [
+        "python scripts/external_acceptance_runner.py --profile worm --confirm-real-target"
+      ],
+      "open_requirement_count": 1,
+      "p0_open_requirement_count": 1,
+      "remediation": [
+        "Configure WORM acceptance command/evidence against real immutable storage.",
+        "Generate and verify a current release challenge using the configured external trust verifier.",
+        "Set ACCEPTANCE_ENVIRONMENT_ID and a 64-hex ACCEPTANCE_TOPOLOGY_HASH on the real acceptance host."
+      ]
+    }
+  },
+  "schema_version": "1.0",
+  "toolchain": {
+    "available_tools": [
+      "chromium",
+      "npm",
+      "uv"
+    ],
+    "classification": "STANDALONE_TOOLCHAIN_READINESS_NOT_ACCEPTANCE_EVIDENCE",
+    "groups": {
+      "artifact_signing_tooling": false,
+      "container_runtime": false,
+      "desktop_build_tooling": false,
+      "frontend_browser_tooling": true,
+      "supply_chain_scanner_tooling": false
+    },
+    "unavailable_tools": [
+      "bandit",
+      "cargo",
+      "cosign",
+      "docker",
+      "gitleaks",
+      "pip-audit",
+      "pip-licenses",
+      "rustc",
+      "semgrep",
+      "syft",
+      "trivy"
+    ]
+  },
+  "truth_policy": "This report prioritizes blockers and remediation only. It cannot promote requirements, acceptance profiles, or release gates to PASS.",
+  "unmapped_requirement_count": 0
+}

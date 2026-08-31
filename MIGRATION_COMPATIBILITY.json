@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "classification": "DATABASE_MIGRATION_COMPATIBILITY_CONTRACT",
+  "policy": "Every migration applied by guarded release orchestration must be explicitly classified. Destructive downgrade support is never inferred.",
+  "migrations": {
+    "0001_core_schema": {
+      "down_revision": null,
+      "previous_release_compatible": false,
+      "requires_backup": true,
+      "rollback_strategy": "restore_only",
+      "notes": "Initial financial schema; destructive downgrade is blocked."
+    },
+    "0002_identity_recovery": {
+      "down_revision": "0001_core_schema",
+      "previous_release_compatible": true,
+      "requires_backup": true,
+      "rollback_strategy": "restore_or_forward",
+      "notes": "Additive identity-recovery table; downgrade remains intentionally blocked."
+    },
+    "0003_dead_letter_forensics": {
+      "down_revision": "0002_identity_recovery",
+      "previous_release_compatible": true,
+      "requires_backup": true,
+      "rollback_strategy": "restore_or_forward",
+      "notes": "Additive forensic columns; downgrade remains intentionally blocked."
+    }
+  }
+}

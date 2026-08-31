@@ -1,0 +1,89 @@
+{
+  "candidate_git_sha": "5a0b16d58b6a6727675d075d04032acb3e86f38d",
+  "candidate_identity_mode": "GIT_HEAD",
+  "candidate_source_identity_verified": true,
+  "candidate_tags": [
+    "v0.3.0-phase192"
+  ],
+  "classification": "ACCEPTANCE_HANDOFF_NOT_ACCEPTANCE_EVIDENCE",
+  "generated_at": "2026-08-31T14:21:58.439351+00:00",
+  "immutable_candidate_tag_present": true,
+  "operator_rules": [
+    "Use an immutable tag or exact SHA; packaged-source identity may prove the SHA but not tag presence.",
+    "Review and commit resolved dependency locks before production acceptance.",
+    "Use protected secrets only on the self-hosted production-acceptance runner.",
+    "Do not treat this handoff document as acceptance evidence.",
+    "Return evidence through the staged promotion transaction; crash recovery and the import replay ledger must be healthy before another promotion.",
+    "Do not enable LIVE unless the canonical release gate independently becomes eligible and human approval is recorded."
+  ],
+  "protected_environment": "production-acceptance",
+  "release_status": {
+    "default_mode": "PAPER",
+    "live_enabled": false,
+    "prod_live_status": "BLOCKED"
+  },
+  "required_environment_vars": [
+    "ACCEPTANCE_ENVIRONMENT_ID",
+    "ACCEPTANCE_TOPOLOGY_HASH"
+  ],
+  "required_runner_labels": [
+    "self-hosted",
+    "production-acceptance"
+  ],
+  "required_secrets": [
+    "BINANCE_TESTNET_API_KEY",
+    "BINANCE_TESTNET_API_SECRET",
+    "PITR_DRILL_COMMAND",
+    "PITR_EVIDENCE_JSON",
+    "HA_DRILL_COMMAND",
+    "HA_EVIDENCE_JSON",
+    "WORM_ACCEPTANCE_COMMAND",
+    "WORM_EVIDENCE_JSON",
+    "RESTART_DRILL_COMMAND",
+    "RESTART_EVIDENCE_JSON",
+    "PROVENANCE_SIGN_VERIFY_COMMAND",
+    "ACCEPTANCE_CHALLENGE_VERIFY_COMMAND",
+    "LEDGER_CHECKPOINT_SIGN_COMMAND",
+    "ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND"
+  ],
+  "required_source_files": [
+    "uv.lock",
+    "frontend/package-lock.json"
+  ],
+  "schema_version": "1.2",
+  "source_file_presence": {
+    "frontend/package-lock.json": false,
+    "uv.lock": false
+  },
+  "source_lock_compliance": {
+    "locks": [
+      {
+        "exists": false,
+        "head_sha256": null,
+        "matches_head": false,
+        "package_manifest_bound": false,
+        "path": "uv.lock",
+        "source_compliant": false,
+        "tracked": false,
+        "working_tree_sha256": null
+      },
+      {
+        "exists": false,
+        "head_sha256": null,
+        "matches_head": false,
+        "package_manifest_bound": false,
+        "path": "frontend/package-lock.json",
+        "source_compliant": false,
+        "tracked": false,
+        "working_tree_sha256": null
+      }
+    ],
+    "problems": [
+      "frontend/package-lock.json:MISSING",
+      "uv.lock:MISSING"
+    ],
+    "verified": false
+  },
+  "trigger": "workflow_dispatch",
+  "workflow": ".github/workflows/production-acceptance.yml"
+}

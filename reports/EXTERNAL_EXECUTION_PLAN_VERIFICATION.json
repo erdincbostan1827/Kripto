@@ -1,0 +1,711 @@
+{
+  "ambiguous_p0_requirement_ids": [],
+  "classification": "EXTERNAL_EXECUTION_PLAN_CONSISTENCY_NOT_ACCEPTANCE_EVIDENCE",
+  "mapped_requirement_count": 100,
+  "mappings": [
+    {
+      "priority": "P1",
+      "profile": "dependency-locks",
+      "requirement_id": "REQ-V51-001-001",
+      "section": 1
+    },
+    {
+      "priority": "P1",
+      "profile": "dependency-locks",
+      "requirement_id": "REQ-V51-001-011",
+      "section": 1
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-002",
+      "section": 20
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-003",
+      "section": 20
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-004",
+      "section": 20
+    },
+    {
+      "blocker_category": "RUNTIME_INTEGRATION",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-042-009",
+      "section": 42
+    },
+    {
+      "blocker_category": "MARKET_CAMPAIGN",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-001",
+      "section": 43
+    },
+    {
+      "blocker_category": "MARKET_CAMPAIGN",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-002",
+      "section": 43
+    },
+    {
+      "blocker_category": "MARKET_CAMPAIGN",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-003",
+      "section": 43
+    },
+    {
+      "blocker_category": "MARKET_CAMPAIGN",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-004",
+      "section": 43
+    },
+    {
+      "blocker_category": "MARKET_CAMPAIGN",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-005",
+      "section": 43
+    },
+    {
+      "blocker_category": "CONTAINER_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-046-001",
+      "section": 46
+    },
+    {
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-001",
+      "section": 65
+    },
+    {
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-002",
+      "section": 65
+    },
+    {
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-003",
+      "section": 65
+    },
+    {
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-004",
+      "section": 65
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-065-007",
+      "section": 65
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-065-012",
+      "section": 65
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-001",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-002",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-005",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-009",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-010",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-011",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-012",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-013",
+      "section": 96
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-097-001",
+      "section": 97
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-097-018",
+      "section": 97
+    },
+    {
+      "blocker_category": "RUNTIME_FAULT_DRILL",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-001",
+      "section": 99
+    },
+    {
+      "blocker_category": "RUNTIME_FAULT_DRILL",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-015",
+      "section": 99
+    },
+    {
+      "blocker_category": "RUNTIME_FAULT_DRILL",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-016",
+      "section": 99
+    },
+    {
+      "blocker_category": "RUNTIME_FAULT_DRILL",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-020",
+      "section": 99
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-027",
+      "section": 136
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-028",
+      "section": 136
+    },
+    {
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-029",
+      "section": 136
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-001",
+      "section": 167
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-010",
+      "section": 167
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-011",
+      "section": 167
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-012",
+      "section": 167
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-014",
+      "section": 167
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-001",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-002",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-003",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-004",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-005",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-006",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-007",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-008",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-009",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-010",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-011",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-012",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-013",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-014",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-016",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-017",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-018",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-019",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-020",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-021",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-022",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-023",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-024",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-025",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-026",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-027",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-028",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-029",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-030",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-031",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-032",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-033",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-034",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-035",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-036",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-037",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-038",
+      "section": 168
+    },
+    {
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-169-007",
+      "section": 169
+    },
+    {
+      "priority": "P1",
+      "profile": "desktop-build",
+      "requirement_id": "REQ-V51-169-010",
+      "section": 169
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-001",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-012",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-013",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-014",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-015",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-017",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-018",
+      "section": 178
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-019",
+      "section": 178
+    },
+    {
+      "blocker_category": "EXTERNAL_IMMUTABLE_STORAGE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "worm",
+      "requirement_id": "REQ-V51-181-016",
+      "section": 181
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-001",
+      "section": 184
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-013",
+      "section": 184
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-014",
+      "section": 184
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-015",
+      "section": 184
+    },
+    {
+      "blocker_category": "RECOVERY_HA_RUNTIME",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-016",
+      "section": 184
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-005",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-007",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-008",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-009",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-010",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "signing",
+      "requirement_id": "REQ-V51-189-016",
+      "section": 189
+    },
+    {
+      "blocker_category": "SUPPLY_CHAIN_PROVENANCE",
+      "external_required": true,
+      "priority": "P0",
+      "profile": "signing",
+      "requirement_id": "REQ-V51-189-017",
+      "section": 189
+    }
+  ],
+  "open_requirement_count": 100,
+  "p0_open_requirement_count": 42,
+  "problems": [],
+  "profile_counts": {
+    "dependency-locks": 2,
+    "desktop-build": 1,
+    "frontend-browser": 43,
+    "ha": 5,
+    "pitr": 8,
+    "provenance": 7,
+    "restart-drills": 4,
+    "runtime": 6,
+    "signing": 2,
+    "supply-chain": 8,
+    "testnet-campaigns": 13,
+    "worm": 1
+  },
+  "schema_version": "1.0",
+  "truth_policy": "This verifies that every unresolved requirement has one non-ambiguous execution profile and that P0 blocker categories agree with that profile. It does not satisfy any requirement or production release gate.",
+  "verified": true
+}

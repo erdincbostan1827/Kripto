@@ -1,0 +1,5 @@
+Phase 188 local verification SHA: 3aafe3cf4a32a1db2c7be63334a062940f3c3c4a
+Coverage attempt: INCOMPLETE
+Completed coverage shards: 40/48 or fewer; no complete merged Phase 188 coverage manifest was produced.
+Prior Phase 187 coverage is NOT reused as Phase 188 evidence.
+Classification: COVERAGE_NOT_FRESH_OR_INCOMPLETE

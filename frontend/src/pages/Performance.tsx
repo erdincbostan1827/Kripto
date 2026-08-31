@@ -1,0 +1,1 @@
+import {Stack,Typography} from '@mui/material'; export default function Performance(){return <Stack spacing={2}><Typography variant="h4">Performans & Risk</Typography><Typography>PnL attribution, implementation shortfall, drawdown, correlation/concentration, regime ve strategy attribution.</Typography></Stack>}

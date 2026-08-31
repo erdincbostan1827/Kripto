@@ -1,0 +1,33 @@
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.venv/
+venv/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+.DS_Store
+
+*.tsbuildinfo
+PACKAGE_MANIFEST.json
+
+# Generated local verification evidence
+reports/local_acceptance/
+reports/local_coverage/
+
+# Generated external acceptance evidence
+reports/external_acceptance/
+reports/EXTERNAL_REQUIREMENTS_MASTER_EXECUTION.json
+
+# Phase 180 runtime acceptance import ledger
+reports/acceptance_import/

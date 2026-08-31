@@ -1,0 +1,1 @@
+import {Stack,Typography} from '@mui/material'; export default function Alerts(){return <Stack spacing={2}><Typography variant="h4">Alarmlar</Typography><Typography>Fiyat, spread, volatilite, veri tazeliği, risk ve sistem olayları. Kritik alarm tek Telegram kanalına bağımlı değildir.</Typography></Stack>}

@@ -1,0 +1,41 @@
+services:
+  postgres:
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=test ! -f /wal_archive/%f && cp %p /wal_archive/%f
+      - -c
+      - wal_level=replica
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - postgres_wal_archive:/wal_archive
+
+  app:
+    environment:
+      ENVIRONMENT: PROD
+      MODE: PAPER
+      TRUSTED_HOSTS: ${PUBLIC_HOSTNAME:?PUBLIC_HOSTNAME must be set}
+      CORS_ORIGINS: https://${PUBLIC_HOSTNAME:?PUBLIC_HOSTNAME must be set}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      APP_ENCRYPTION_KEY_FILE: /run/secrets/app_encryption_key
+      ADMIN_BOOTSTRAP_TOKEN_FILE: /run/secrets/admin_bootstrap_token
+      AUDIT_HMAC_KEY_FILE: /run/secrets/audit_hmac_key
+      HEARTBEAT_HMAC_KEY_FILE: /run/secrets/heartbeat_hmac_key
+      BACKUP_ENCRYPTION_KEY_FILE: /run/secrets/backup_encryption_key
+
+  nginx:
+    volumes:
+      - ./docker/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    secrets: [tls_certificate, tls_private_key]
+    ports:
+      - "80:8080"
+      - "443:8443"
+
+secrets:
+  tls_certificate: {file: ./secrets/tls.crt}
+  tls_private_key: {file: ./secrets/tls.key}
+
+volumes:
+  postgres_wal_archive:

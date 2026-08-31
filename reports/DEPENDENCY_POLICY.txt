@@ -1,0 +1,8 @@
+DEPENDENCY_MANIFEST_POLICY=PASS
+classification=DIRECT_DEPENDENCY_MANIFEST_POLICY_ONLY_NOT_VULNERABILITY_SCAN
+python_specs_checked=17
+npm_specs_checked=18
+uv_lock_present=false
+npm_lock_present=false
+vulnerability_scan_performed=false
+transitive_dependencies_resolved=false

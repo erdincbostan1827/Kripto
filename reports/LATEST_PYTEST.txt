@@ -1,0 +1,5 @@
+Phase 178 recovered-verification SHA: cd2b5daedc0bc8acf91c295a6347064a79521c90
+Collection: 1070 tests / 215 test files
+Canonical segmented regression: 8/8 shards PASS
+Full regression manifest SHA-256: 450efad1d2a8bbc698fc5490d5c88de2147219721818f1d760407da64b3f1824
+Classification: LOCAL_GIT_BOUND_TEST_EVIDENCE_NOT_CI_PROVENANCE

@@ -1,0 +1,229 @@
+{
+  "blockers_by_category": {
+    "CONTAINER_RUNTIME": {
+      "count": 1,
+      "recommended_profile": "runtime",
+      "requirement_ids": [
+        "REQ-V51-046-001"
+      ]
+    },
+    "EXTERNAL_IMMUTABLE_STORAGE": {
+      "count": 1,
+      "recommended_profile": "worm",
+      "requirement_ids": [
+        "REQ-V51-181-016"
+      ]
+    },
+    "MARKET_CAMPAIGN": {
+      "count": 5,
+      "recommended_profile": "testnet_or_campaign",
+      "requirement_ids": [
+        "REQ-V51-043-001",
+        "REQ-V51-043-002",
+        "REQ-V51-043-003",
+        "REQ-V51-043-004",
+        "REQ-V51-043-005"
+      ]
+    },
+    "RECOVERY_HA_RUNTIME": {
+      "count": 13,
+      "recommended_profile": "pitr_or_ha",
+      "requirement_ids": [
+        "REQ-V51-178-001",
+        "REQ-V51-178-012",
+        "REQ-V51-178-013",
+        "REQ-V51-178-014",
+        "REQ-V51-178-015",
+        "REQ-V51-178-017",
+        "REQ-V51-178-018",
+        "REQ-V51-178-019",
+        "REQ-V51-184-001",
+        "REQ-V51-184-013",
+        "REQ-V51-184-014",
+        "REQ-V51-184-015",
+        "REQ-V51-184-016"
+      ]
+    },
+    "RUNTIME_FAULT_DRILL": {
+      "count": 4,
+      "recommended_profile": "restart-drills",
+      "requirement_ids": [
+        "REQ-V51-099-001",
+        "REQ-V51-099-015",
+        "REQ-V51-099-016",
+        "REQ-V51-099-020"
+      ]
+    },
+    "RUNTIME_INTEGRATION": {
+      "count": 1,
+      "recommended_profile": "runtime",
+      "requirement_ids": [
+        "REQ-V51-042-009"
+      ]
+    },
+    "SUPPLY_CHAIN_PROVENANCE": {
+      "count": 17,
+      "recommended_profile": "supply-chain",
+      "requirement_ids": [
+        "REQ-V51-096-001",
+        "REQ-V51-096-002",
+        "REQ-V51-096-005",
+        "REQ-V51-096-009",
+        "REQ-V51-096-010",
+        "REQ-V51-096-011",
+        "REQ-V51-096-012",
+        "REQ-V51-096-013",
+        "REQ-V51-097-001",
+        "REQ-V51-097-018",
+        "REQ-V51-189-005",
+        "REQ-V51-189-007",
+        "REQ-V51-189-008",
+        "REQ-V51-189-009",
+        "REQ-V51-189-010",
+        "REQ-V51-189-016",
+        "REQ-V51-189-017"
+      ]
+    }
+  },
+  "classification": "PRODUCTION_READINESS_DOSSIER_NOT_ACCEPTANCE_EVIDENCE",
+  "external_required_count": 42,
+  "generated_at": "2026-08-31T11:48:10.870249+00:00",
+  "manual_external_evidence_still_required": [
+    "credentialed private user-data stream lifecycle/reconciliation evidence must be produced externally",
+    "real-market PAPER campaign duration and regime coverage evidence must be produced externally",
+    "LIVE-shadow campaign with zero unintended submissions evidence must be produced externally",
+    "real point-in-time profitability/statistical evidence must be produced externally",
+    "templates and validators validate evidence; they do not create or substitute for real evidence",
+    "credential values must never be copied into evidence artifacts"
+  ],
+  "master_command": {
+    "classification": "coordinator_not_acceptance_evidence",
+    "command": "python scripts/external/run_all_external_requirements.py --confirm-real-target",
+    "name": "master_all_external_requirements"
+  },
+  "p0_blocker_count": 42,
+  "preflight_groups": {
+    "challenge_trust_contract": false,
+    "container_runtime": false,
+    "credentialed_testnet": false,
+    "dependency_locks": false,
+    "environment_identity": false,
+    "ha_contract": false,
+    "ledger_checkpoint_contract": false,
+    "pitr_contract": false,
+    "provenance_sign_verify_contract": false,
+    "restart_contract": false,
+    "signing_tooling": false,
+    "transferred_supply_chain_contract": true,
+    "worm_contract": false
+  },
+  "schema_version": "1.0",
+  "truth_policy": "This dossier is an execution plan only. It cannot promote a requirement or release gate to PASS.",
+  "workflow": [
+    {
+      "command": "python scripts/generate_acceptance_challenge.py",
+      "name": "create_release_challenge",
+      "step": 1
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile locks --confirm-real-target",
+      "name": "dependency_locks",
+      "step": 2
+    },
+    {
+      "classification": "standalone_readiness_not_canonical_external_profile",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "name": "frontend_browser",
+      "step": 3
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "name": "runtime",
+      "step": 4
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target",
+      "name": "restart_drills",
+      "step": 5
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "name": "supply_chain",
+      "step": 6
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "name": "pitr",
+      "step": 7
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "name": "ha",
+      "step": 8
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile worm --confirm-real-target",
+      "name": "worm",
+      "step": 9
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target",
+      "name": "testnet",
+      "step": 10
+    },
+    {
+      "classification": "execution_plan_not_acceptance_evidence",
+      "command": "python scripts/external/execution_map.py",
+      "name": "map_all_open_requirements",
+      "step": 11
+    },
+    {
+      "classification": "execution_plan_consistency_not_acceptance_evidence",
+      "command": "python scripts/verify_external_execution_plan.py",
+      "name": "verify_external_execution_plan",
+      "step": 12
+    },
+    {
+      "classification": "standalone_readiness_not_acceptance_evidence",
+      "command": "python scripts/external/toolchain_readiness.py",
+      "name": "inventory_external_toolchain",
+      "step": 13
+    },
+    {
+      "classification": "standalone_readiness_not_signing_evidence",
+      "command": "python scripts/external/tauri_build_readiness.py --confirm-real-target",
+      "name": "desktop_build",
+      "step": 14
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "name": "provenance",
+      "step": 15
+    },
+    {
+      "command": "python scripts/external/generate_campaign_evidence_templates.py",
+      "name": "generate_campaign_evidence_templates",
+      "step": 16
+    },
+    {
+      "command": "python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "name": "validate_campaign_evidence",
+      "step": 17
+    },
+    {
+      "command": "python scripts/merge_external_acceptance.py",
+      "name": "merge_external_profiles",
+      "step": 18
+    },
+    {
+      "command": "python scripts/verify_external_acceptance.py reports/external_acceptance/manifest_all.json",
+      "name": "verify_external_bundle",
+      "step": 19
+    },
+    {
+      "command": "python scripts/generate_release_manifest.py && python scripts/release_gate.py",
+      "name": "release_gate",
+      "step": 20
+    }
+  ]
+}

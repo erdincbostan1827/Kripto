@@ -1,0 +1,12 @@
+{
+  "coverage": {
+    "coverage_classification": "COVERAGE_NOT_FRESH_OR_INCOMPLETE",
+    "coverage_fresh": false,
+    "coverage_percent": null
+  },
+  "git_commit_sha": "5a0b16d58b6a6727675d075d04032acb3e86f38d",
+  "problems": [],
+  "schema_version": "1.0",
+  "test_count": 1180,
+  "verified": true
+}

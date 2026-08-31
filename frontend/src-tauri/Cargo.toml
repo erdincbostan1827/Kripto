@@ -1,0 +1,14 @@
+[package]
+name = "crypto-trading-platform-desktop"
+version = "0.3.0"
+description = "Optional fail-closed desktop shell for the server-side Crypto Trading Platform"
+edition = "2024"
+publish = false
+
+[build-dependencies]
+tauri-build = "=2.6.3"
+
+[dependencies]
+tauri = "=2.11.5"
+tauri-plugin-notification = "=2.3.3"
+tauri-plugin-updater = "=2.10.1"

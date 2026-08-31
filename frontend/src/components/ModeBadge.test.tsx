@@ -1,0 +1,1 @@
+import {render,screen} from '@testing-library/react'; import {describe,it,expect} from 'vitest'; import {ModeBadge} from './ModeBadge'; describe('ModeBadge',()=>{it('labels real money explicitly',()=>{render(<ModeBadge mode="LIVE"/>);expect(screen.getByText(/GERÇEK PARA/)).toBeTruthy()})});

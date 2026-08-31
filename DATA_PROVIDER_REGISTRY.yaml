@@ -1,0 +1,29 @@
+schema_version: 1
+release: 0.3.0-local-acceptance
+providers:
+  - provider_id: BINANCE_SPOT
+    data_type:
+      - market_data
+      - reference_metadata
+      - execution
+      - private_account_events
+    official_documented_source:
+      base_rest: https://api.binance.com
+      spot_rest_docs: https://developers.binance.com/docs/binance-spot-api-docs/rest-api
+      market_websocket_docs: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams
+      user_data_docs: https://developers.binance.com/docs/binance-spot-api-docs/user-data-stream
+    license_tos_metadata: REVIEW_REQUIRED_BEFORE_PROD_REDISTRIBUTION
+    redistribution: DISABLED_BY_PLATFORM_DEFAULT
+    attribution_requirements: REVIEW_REQUIRED_BEFORE_EXTERNAL_REDISTRIBUTION
+    retention_restrictions: REVIEW_REQUIRED_BEFORE_PROD
+    rate_limits: RUNTIME_EXCHANGE_INFO_AND_RESPONSE_HEADERS_SOURCE_OF_TRUTH
+    commercial_constraints: REVIEW_REQUIRED_BEFORE_PROD
+    timezone_timestamp_semantics: UTC_EXCHANGE_EPOCH_TIME_NORMALIZED_TO_AWARE_UTC
+    revision_vintage_semantics: EXCHANGE_INFO_AND_SYMBOL_METADATA_VERSIONED_AT_INGEST
+    data_quality_owner: MARKET_DATA_ADAPTER
+    adapter_version: 0.3.0
+    public_contract_status: VERIFIED_2026-08-26
+    credentialed_status: NOT_TESTED
+    known_limitations:
+      - Credentialed TESTNET/private-stream acceptance has not run in this environment.
+      - TOS/license review remains required before any external raw-data redistribution.

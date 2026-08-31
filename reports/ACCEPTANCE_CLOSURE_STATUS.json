@@ -1,0 +1,2762 @@
+{
+  "blocked_requirement_count": 100,
+  "blocking_reason_counts": {
+    "external:desktop_build_or_signing_runner": 1,
+    "external:real_browser_matrix": 43,
+    "external:trusted_ci_provenance": 7,
+    "external:trusted_ci_supply_chain_evidence": 8,
+    "external:trusted_signing_identity": 2,
+    "group:challenge_trust_contract": 27,
+    "group:container_runtime": 10,
+    "group:credentialed_testnet": 13,
+    "group:dependency_locks": 46,
+    "group:environment_identity": 27,
+    "group:ha_contract": 5,
+    "group:ledger_checkpoint_contract": 7,
+    "group:pitr_contract": 8,
+    "group:provenance_sign_verify_contract": 7,
+    "group:restart_contract": 4,
+    "group:signing_tooling": 2,
+    "group:worm_contract": 1,
+    "tool:cargo": 1
+  },
+  "classification": "ACCEPTANCE_CLOSURE_STATUS_NOT_ACCEPTANCE_EVIDENCE",
+  "generated_at": "2026-08-31T14:24:05.552109+00:00",
+  "open_requirement_count": 100,
+  "p0_open_requirement_count": 42,
+  "preflight_all_external_prerequisites_ready": false,
+  "preflight_classification": "EXTERNAL_ACCEPTANCE_PREFLIGHT_ONLY_NOT_ACCEPTANCE_EVIDENCE",
+  "profile_counts": {
+    "dependency-locks": 2,
+    "desktop-build": 1,
+    "frontend-browser": 43,
+    "ha": 5,
+    "pitr": 8,
+    "provenance": 7,
+    "restart-drills": 4,
+    "runtime": 6,
+    "signing": 2,
+    "supply-chain": 8,
+    "testnet-campaigns": 13,
+    "worm": 1
+  },
+  "requirements": [
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile locks --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 1 (TEKNOLOJ\u0130 YI\u011eINI) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "dependency-locks",
+      "requirement_id": "REQ-V51-001-001",
+      "section": 1
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile locks --confirm-real-target",
+      "description": "package-lock/pnpm-lock/uv.lock gibi lockfile \u00fcret.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "dependency-locks",
+      "requirement_id": "REQ-V51-001-011",
+      "section": 1
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "Ger\u00e7ek piyasa verisiyle sanal i\u015flem yap.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-002",
+      "section": 20
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "entry",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-003",
+      "section": 20
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "stop",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-020-004",
+      "section": 20
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "redis",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-042-009",
+      "section": 42
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 43 (TESTNET) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-001",
+      "section": 43
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "market order",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-002",
+      "section": 43
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "limit order",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-003",
+      "section": 43
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "cancel",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-004",
+      "section": 43
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "partial fill",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-043-005",
+      "section": 43
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 46 (DOCKER) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-046-001",
+      "section": 46
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 65 (FINAL ACCEPTANCE TEST) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-001",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "docker compose build",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-002",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "docker compose up -d",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-003",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target",
+      "description": "migrations",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "runtime",
+      "requirement_id": "REQ-V51-065-004",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "paper trading",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-065-007",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "exchange testnet ba\u011flant\u0131s\u0131",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-065-012",
+      "section": 65
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 96 (SUPPLY CHAIN / DEPENDENCY SECURITY) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-001",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "lock file kullan",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-002",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "vulnerability scan yap",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-005",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "dependency license raporu \u00fcret",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-009",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "pip-audit",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-010",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "Trivy",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-011",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "gitleaks",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-012",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "external:trusted_ci_supply_chain_evidence"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile supply-chain --confirm-real-target",
+      "description": "Bandit/Semgrep",
+      "prerequisites": [
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_supply_chain_evidence",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "supply-chain",
+      "requirement_id": "REQ-V51-096-013",
+      "section": 96
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 97 (CI/CD / RELEASE GATES) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-097-001",
+      "section": 97
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "dependency lock hash",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-097-018",
+      "section": 97
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime",
+        "group:restart_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 99 (ADVANCED TESTING / FAULT INJECTION) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:restart_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-001",
+      "section": 99
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime",
+        "group:restart_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target",
+      "description": "Redis restart",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:restart_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-015",
+      "section": 99
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime",
+        "group:restart_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target",
+      "description": "PostgreSQL restart",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:restart_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-016",
+      "section": 99
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:container_runtime",
+        "group:restart_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile restart-drills --confirm-real-target",
+      "description": "kritik senaryolar\u0131n\u0131 test et.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:container_runtime",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:restart_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "restart-drills",
+      "requirement_id": "REQ-V51-099-020",
+      "section": 99
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "Paper result",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-027",
+      "section": 136
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "Testnet execution result",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-028",
+      "section": 136
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:credentialed_testnet",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target && python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target",
+      "description": "Live-shadow result",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:credentialed_testnet",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "testnet-campaigns",
+      "requirement_id": "REQ-V51-136-029",
+      "section": 136
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 167 (FRONTEND PERFORMANCE / STABILITY BUDGET) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-001",
+      "section": 167
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "dashboard first meaningful render",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-010",
+      "section": 167
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "scanner interaction latency",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-011",
+      "section": 167
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "chart update latency",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-012",
+      "section": 167
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "browser memory after soak",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-167-014",
+      "section": 167
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 168 (UI / UX / E2E ACCEPTANCE TESTLER\u0130) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-001",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "Vitest/Jest + React Testing Library veya e\u015fde\u011fer",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-002",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "form validation",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-003",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "permissions",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-004",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "state mapping",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-005",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "risk summary",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-006",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "number/precision display",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-007",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "login/logout/session expiry",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-008",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "first-run wizard",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-009",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "invalid exchange credential",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-010",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "withdrawal permission rejection",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-011",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "PAPER default",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-012",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "scanner load/filter/sort",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-013",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "per-asset analysis navigation",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-014",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "WebSocket disconnect/reconnect/resync",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-016",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "open position display",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-017",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "SL/TP marker display",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-018",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "LIVE enable blocked by gate",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-019",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "successful controlled LIVE approval flow using mock/testnet",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-020",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "double-click/duplicate submit protection",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-021",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "risk setting increase confirmation",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-022",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "panic close confirmation using testnet/mock",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-023",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "mobile navigation",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-024",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "accessibility smoke",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-025",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "Chromium/Chrome current",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-026",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "Edge current",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-027",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "Firefox current",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-028",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "WebKit/Safari equivalent through supported E2E tooling",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-029",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "1920x1080",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-030",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "common laptop width",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-031",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "tablet",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-032",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "representative mobile",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-033",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "core dashboard",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-034",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "scanner",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-035",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "asset analysis",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-036",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "LIVE warning modal",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-037",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "critical error banner",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-168-038",
+      "section": 168
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "external:real_browser_matrix"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/frontend_browser_acceptance.py --confirm-real-target",
+      "description": "production static build",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:real_browser_matrix",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "frontend-browser",
+      "requirement_id": "REQ-V51-169-007",
+      "section": 169
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:dependency_locks",
+        "tool:cargo",
+        "external:desktop_build_or_signing_runner"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external/tauri_build_readiness.py --confirm-real-target",
+      "description": "signed installer/package m\u00fcmk\u00fcnse",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:dependency_locks",
+          "ready": false
+        },
+        {
+          "detail": "TOOL_UNAVAILABLE:cargo",
+          "key": "tool:cargo",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:desktop_build_or_signing_runner",
+          "ready": false
+        }
+      ],
+      "priority": "P1",
+      "profile": "desktop-build",
+      "requirement_id": "REQ-V51-169-010",
+      "section": 169
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 178 (BACKUP / RPO / RTO / PITR / RESTORE DRILL) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-001",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "Zorunlu periyodik RESTORE DRILL:",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-012",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "izole test ortam\u0131 a\u00e7",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-013",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "backup/PITR restore et",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-014",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "migration/schema do\u011frula",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-015",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "checksums/evidence do\u011frula",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-017",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "uygulama read-only smoke test \u00e7al\u0131\u015ft\u0131r",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-018",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:pitr_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile pitr --confirm-real-target",
+      "description": "sonu\u00e7 raporla",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:pitr_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "pitr",
+      "requirement_id": "REQ-V51-178-019",
+      "section": 178
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:worm_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile worm --confirm-real-target",
+      "description": "append-only/WORM-capable storage",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:worm_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "worm",
+      "requirement_id": "REQ-V51-181-016",
+      "section": 181
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:ha_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "description": "B\u00f6l\u00fcm 184 (PRODUCTION AVAILABILITY PROFILES / HA / STANDBY) h\u00fck\u00fcmlerini canonical profile ve v5.1 precedence kurallar\u0131yla uygulama.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ha_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-001",
+      "section": 184
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:ha_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "description": "host loss simulation",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ha_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-013",
+      "section": 184
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:ha_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "description": "DB failover",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ha_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-014",
+      "section": 184
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:ha_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "description": "Redis failover uygun ise",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ha_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-015",
+      "section": 184
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:ha_contract",
+        "group:environment_identity",
+        "group:challenge_trust_contract"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile ha --confirm-real-target",
+      "description": "network partition",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ha_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:environment_identity",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:challenge_trust_contract",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "ha",
+      "requirement_id": "REQ-V51-184-016",
+      "section": 184
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "CI run id",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-005",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "dependency lock hash",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-007",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "SBOM hash",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-008",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "container digest",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-009",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:provenance_sign_verify_contract",
+        "group:ledger_checkpoint_contract",
+        "external:trusted_ci_provenance"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "frontend artifact hash",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:provenance_sign_verify_contract",
+          "ready": false
+        },
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:ledger_checkpoint_contract",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_ci_provenance",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "provenance",
+      "requirement_id": "REQ-V51-189-010",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:signing_tooling",
+        "external:trusted_signing_identity"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "M\u00fcmk\u00fcnse container/image ve desktop package signing uygula.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:signing_tooling",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_signing_identity",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "signing",
+      "requirement_id": "REQ-V51-189-016",
+      "section": 189
+    },
+    {
+      "blocked": true,
+      "blocking_reasons": [
+        "group:signing_tooling",
+        "external:trusted_signing_identity"
+      ],
+      "classification": "CLOSURE_PLAN_NOT_ACCEPTANCE_EVIDENCE",
+      "command": "python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target",
+      "description": "Signed artifact destekleniyorsa deployment s\u0131ras\u0131nda signature verification yap.",
+      "prerequisites": [
+        {
+          "detail": "PREFLIGHT_BLOCKED",
+          "key": "group:signing_tooling",
+          "ready": false
+        },
+        {
+          "detail": "REAL_EXTERNAL_EVIDENCE_REQUIRED",
+          "key": "external:trusted_signing_identity",
+          "ready": false
+        }
+      ],
+      "priority": "P0",
+      "profile": "signing",
+      "requirement_id": "REQ-V51-189-017",
+      "section": 189
+    }
+  ],
+  "schema_version": "1.0",
+  "truth_policy": "This report explains unresolved acceptance work and prerequisite blockers only. It cannot promote requirements to PASS; PASS requires the repository's checksum-bound trusted acceptance evidence path.",
+  "unmapped_requirement_count": 0
+}

@@ -1,0 +1,3 @@
+1180 tests collected
+232 test files collected
+classification=FRESH_GIT_BOUND_TEST_INVENTORY

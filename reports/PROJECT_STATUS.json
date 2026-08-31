@@ -1,0 +1,82 @@
+{
+  "backend_coverage_percent": null,
+  "blockers": [
+    "P0 requirements not all PASS ({'PASS': 1469, 'NOT_TESTED': 42})",
+    "frontend_dependency_resolved_build=NOT_TESTED",
+    "docker_runtime=NOT_TESTED",
+    "postgres_runtime_migration=NOT_TESTED",
+    "redis_runtime_integration=NOT_TESTED",
+    "redis_restart_drill=NOT_TESTED",
+    "postgres_restart_drill=NOT_TESTED",
+    "pitr_restore_drill=NOT_TESTED",
+    "ha_failover_drill=NOT_TESTED",
+    "worm_audit_storage=NOT_TESTED",
+    "credentialed_binance_testnet=NOT_TESTED",
+    "credentialed_private_stream=NOT_TESTED",
+    "real_market_paper_campaign=NOT_TESTED",
+    "live_shadow_campaign=NOT_TESTED",
+    "real_pit_profitability_evidence=NOT_TESTED",
+    "supply_chain_scans_and_sbom=NOT_TESTED",
+    "ci_release_provenance=NOT_TESTED",
+    "source lock non-compliant: frontend/package-lock.json:MISSING",
+    "source lock non-compliant: uv.lock:MISSING"
+  ],
+  "coverage_classification": "COVERAGE_NOT_FRESH_OR_INCOMPLETE",
+  "coverage_fresh": false,
+  "default_mode": "PAPER",
+  "generated_at": "2026-08-31T14:24:55.652521+00:00",
+  "live_enabled": false,
+  "manifest_sha256": "7c38b68b55a30ec23295823b6cab96eb961d2da9d2acc0311638ad23820a3751",
+  "matrix_sha256": "5dc0fe82f5e60f1a9098b91a7a6af21c061b87d77ceb64533d6286d6b8bac3a3",
+  "prod_live_status": "BLOCKED",
+  "release_classification": "LOCAL_ACCEPTANCE_NOT_PRODUCTION_READY",
+  "release_id": "0.3.0-local-acceptance",
+  "requirements": {
+    "counts": {
+      "NOT_TESTED": 100,
+      "PASS": 2591
+    },
+    "p0_counts": {
+      "NOT_TESTED": 42,
+      "PASS": 1469
+    },
+    "p0_total": 1511,
+    "total": 2691
+  },
+  "schema_version": "1.0",
+  "source_lock_compliance": {
+    "git_head": "5a0b16d58b6a6727675d075d04032acb3e86f38d",
+    "identity_mode": "GIT_HEAD",
+    "identity_verified": true,
+    "locks": [
+      {
+        "exists": false,
+        "head_sha256": null,
+        "matches_head": false,
+        "package_manifest_bound": false,
+        "path": "uv.lock",
+        "source_compliant": false,
+        "tracked": false,
+        "working_tree_sha256": null
+      },
+      {
+        "exists": false,
+        "head_sha256": null,
+        "matches_head": false,
+        "package_manifest_bound": false,
+        "path": "frontend/package-lock.json",
+        "source_compliant": false,
+        "tracked": false,
+        "working_tree_sha256": null
+      }
+    ],
+    "package_content_set_sha256": null,
+    "problems": [
+      "frontend/package-lock.json:MISSING",
+      "uv.lock:MISSING"
+    ],
+    "repository_verified": true,
+    "verified": false
+  },
+  "test_count": 1180
+}

@@ -1,0 +1,690 @@
+BEGIN;
+
+CREATE TABLE alembic_version (
+    version_num VARCHAR(32) NOT NULL, 
+    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+);
+
+-- Running upgrade  -> 0001_core_schema
+
+CREATE TABLE alerts (
+    id VARCHAR(32) NOT NULL, 
+    alert_type VARCHAR(40) NOT NULL, 
+    severity VARCHAR(20) NOT NULL, 
+    symbol VARCHAR(50), 
+    message TEXT NOT NULL, 
+    delivery_state JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE asset_master (
+    id VARCHAR(64) NOT NULL, 
+    canonical_symbol VARCHAR(32) NOT NULL, 
+    display_name VARCHAR(120) NOT NULL, 
+    metadata_source VARCHAR(80) NOT NULL, 
+    metadata_version INTEGER NOT NULL, 
+    active_from TIMESTAMP WITH TIME ZONE NOT NULL, 
+    active_to TIMESTAMP WITH TIME ZONE, 
+    extra JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_asset_master_canonical_symbol ON asset_master (canonical_symbol);
+
+CREATE TABLE asset_risk_profiles (
+    id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    risk_class VARCHAR(40) NOT NULL, 
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL, 
+    valid_to TIMESTAMP WITH TIME ZONE, 
+    limits JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_asset_risk_profiles_symbol ON asset_risk_profiles (symbol);
+
+CREATE TABLE audit_log (
+    id VARCHAR(32) NOT NULL, 
+    previous_hash VARCHAR(64) NOT NULL, 
+    current_hash VARCHAR(64) NOT NULL, 
+    actor VARCHAR(120) NOT NULL, 
+    action VARCHAR(80) NOT NULL, 
+    object_ref VARCHAR(160) NOT NULL, 
+    correlation_id VARCHAR(64) NOT NULL, 
+    reason TEXT NOT NULL, 
+    release_version VARCHAR(40) NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    UNIQUE (current_hash)
+);
+
+CREATE INDEX ix_audit_log_correlation_id ON audit_log (correlation_id);
+
+CREATE TABLE backtests (
+    id VARCHAR(32) NOT NULL, 
+    strategy_id VARCHAR(80) NOT NULL, 
+    dataset_hash VARCHAR(64) NOT NULL, 
+    config_hash VARCHAR(64) NOT NULL, 
+    universe_snapshot_ref VARCHAR(64), 
+    metrics JSON NOT NULL, 
+    status VARCHAR(20) NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE correlation_snapshots (
+    id VARCHAR(32) NOT NULL, 
+    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    "window" VARCHAR(24) NOT NULL, 
+    matrix JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_correlation_snapshots_snapshot_time ON correlation_snapshots (snapshot_time);
+
+CREATE TABLE dead_letters (
+    id VARCHAR(32) NOT NULL, 
+    original_event_id VARCHAR(32) NOT NULL, 
+    event_type VARCHAR(80) NOT NULL, 
+    schema_version INTEGER NOT NULL, 
+    payload_hash VARCHAR(64) NOT NULL, 
+    failure_reason TEXT NOT NULL, 
+    correlation_id VARCHAR(64) NOT NULL, 
+    attempts INTEGER NOT NULL, 
+    resolution_state VARCHAR(20) NOT NULL, 
+    PRIMARY KEY (id), 
+    UNIQUE (original_event_id)
+);
+
+CREATE TABLE delisting_events (
+    id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    effective_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    source VARCHAR(80) NOT NULL, 
+    payload JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_delisting_events_symbol ON delisting_events (symbol);
+
+CREATE TABLE domain_events (
+    event_id VARCHAR(32) NOT NULL, 
+    event_type VARCHAR(80) NOT NULL, 
+    schema_version INTEGER NOT NULL, 
+    aggregate_id VARCHAR(80) NOT NULL, 
+    correlation_id VARCHAR(64) NOT NULL, 
+    sequence INTEGER NOT NULL, 
+    event_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    received_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    producer_version VARCHAR(40) NOT NULL, 
+    payload_hash VARCHAR(64) NOT NULL, 
+    payload JSON NOT NULL, 
+    PRIMARY KEY (event_id)
+);
+
+CREATE INDEX ix_domain_events_aggregate_id ON domain_events (aggregate_id);
+
+CREATE INDEX ix_domain_events_event_type ON domain_events (event_type);
+
+CREATE TABLE exchange_accounts (
+    id VARCHAR(32) NOT NULL, 
+    exchange VARCHAR(40) NOT NULL, 
+    account_fingerprint VARCHAR(128) NOT NULL, 
+    market_type VARCHAR(20) NOT NULL, 
+    capabilities JSON NOT NULL, 
+    permission_snapshot JSON NOT NULL, 
+    status VARCHAR(40) NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_exchange_accounts_account_fingerprint ON exchange_accounts (account_fingerprint);
+
+CREATE INDEX ix_exchange_accounts_exchange ON exchange_accounts (exchange);
+
+CREATE TABLE health_checks (
+    id VARCHAR(32) NOT NULL, 
+    component VARCHAR(80) NOT NULL, 
+    status VARCHAR(24) NOT NULL, 
+    latency_ms NUMERIC(18, 6), 
+    details JSON NOT NULL, 
+    checked_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_health_checks_checked_at ON health_checks (checked_at);
+
+CREATE TABLE incidents (
+    id VARCHAR(32) NOT NULL, 
+    severity VARCHAR(12) NOT NULL, 
+    detected_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    affected_scope VARCHAR(160) NOT NULL, 
+    automatic_action VARCHAR(80) NOT NULL, 
+    risk_state VARCHAR(32) NOT NULL, 
+    correlation_ids JSON NOT NULL, 
+    operator_actions JSON NOT NULL, 
+    resolved_at TIMESTAMP WITH TIME ZONE, 
+    recovery_validation JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_incidents_detected_at ON incidents (detected_at);
+
+CREATE TABLE leader_leases (
+    account_id VARCHAR(32) NOT NULL, 
+    instance_id VARCHAR(80) NOT NULL, 
+    fencing_token INTEGER NOT NULL, 
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (account_id)
+);
+
+CREATE TABLE liquidity_snapshots (
+    id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    spread_bps NUMERIC(18, 8) NOT NULL, 
+    depth_notional NUMERIC(38, 18) NOT NULL, 
+    quote_volume_24h NUMERIC(38, 18) NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_liquidity_snapshots_snapshot_time ON liquidity_snapshots (snapshot_time);
+
+CREATE INDEX ix_liquidity_snapshots_symbol ON liquidity_snapshots (symbol);
+
+CREATE TABLE listing_events (
+    id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    effective_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    source VARCHAR(80) NOT NULL, 
+    payload JSON NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_listing_events_symbol ON listing_events (symbol);
+
+CREATE TABLE outbox_events (
+    id VARCHAR(32) NOT NULL, 
+    event_id VARCHAR(32) NOT NULL, 
+    topic VARCHAR(80) NOT NULL, 
+    payload JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    published_at TIMESTAMP WITH TIME ZONE, 
+    attempts INTEGER NOT NULL, 
+    next_attempt_at TIMESTAMP WITH TIME ZONE, 
+    last_error TEXT, 
+    PRIMARY KEY (id), 
+    UNIQUE (event_id)
+);
+
+CREATE TABLE research_trials (
+    id VARCHAR(32) NOT NULL, 
+    strategy_version VARCHAR(80) NOT NULL, 
+    universe_version VARCHAR(80) NOT NULL, 
+    parameter_space JSON NOT NULL, 
+    feature_set JSON NOT NULL, 
+    timeframe_set JSON NOT NULL, 
+    train_window JSON NOT NULL, 
+    oos_window JSON NOT NULL, 
+    primary_metric VARCHAR(40) NOT NULL, 
+    outcome JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE signals (
+    id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    signal VARCHAR(24) NOT NULL, 
+    score INTEGER NOT NULL, 
+    confidence NUMERIC(12, 8) NOT NULL, 
+    regime VARCHAR(40) NOT NULL, 
+    data_timestamp TIMESTAMP WITH TIME ZONE NOT NULL, 
+    signal_timestamp TIMESTAMP WITH TIME ZONE NOT NULL, 
+    universe_snapshot_id VARCHAR(32), 
+    fingerprint VARCHAR(64) NOT NULL, 
+    explainability JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    UNIQUE (fingerprint)
+);
+
+CREATE INDEX ix_signals_symbol ON signals (symbol);
+
+CREATE TABLE strategies (
+    id VARCHAR(32) NOT NULL, 
+    name VARCHAR(80) NOT NULL, 
+    version VARCHAR(40) NOT NULL, 
+    lifecycle_state VARCHAR(32) NOT NULL, 
+    specification JSON NOT NULL, 
+    config_hash VARCHAR(64) NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE system_events (
+    id VARCHAR(32) NOT NULL, 
+    event_type VARCHAR(80) NOT NULL, 
+    severity VARCHAR(20) NOT NULL, 
+    correlation_id VARCHAR(64) NOT NULL, 
+    payload JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_system_events_correlation_id ON system_events (correlation_id);
+
+CREATE INDEX ix_system_events_event_type ON system_events (event_type);
+
+CREATE TABLE universe_snapshots (
+    id VARCHAR(32) NOT NULL, 
+    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    rules_hash VARCHAR(64) NOT NULL, 
+    eligible_count INTEGER NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX ix_universe_snapshots_snapshot_time ON universe_snapshots (snapshot_time);
+
+CREATE TABLE users (
+    id VARCHAR(32) NOT NULL, 
+    username VARCHAR(120) NOT NULL, 
+    password_hash TEXT NOT NULL, 
+    role VARCHAR(20) NOT NULL, 
+    mfa_enabled BOOLEAN NOT NULL, 
+    mfa_secret_encrypted TEXT, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id)
+);
+
+CREATE UNIQUE INDEX ix_users_username ON users (username);
+
+CREATE TABLE account_balances (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    asset VARCHAR(32) NOT NULL, 
+    free NUMERIC(38, 18) NOT NULL, 
+    locked NUMERIC(38, 18) NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    CONSTRAINT uq_account_balance UNIQUE (exchange_account_id, asset), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE TABLE api_credentials (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    key_fingerprint VARCHAR(128) NOT NULL, 
+    encrypted_api_key TEXT NOT NULL, 
+    encrypted_secret TEXT NOT NULL, 
+    permission_snapshot JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id) ON DELETE CASCADE
+);
+
+CREATE TABLE backtest_trades (
+    id VARCHAR(32) NOT NULL, 
+    backtest_id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    entry_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    exit_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    quantity NUMERIC(38, 18) NOT NULL, 
+    entry_price NUMERIC(38, 18) NOT NULL, 
+    exit_price NUMERIC(38, 18) NOT NULL, 
+    pnl NUMERIC(38, 18) NOT NULL, 
+    costs JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(backtest_id) REFERENCES backtests (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_backtest_trades_backtest_id ON backtest_trades (backtest_id);
+
+CREATE TABLE capital_reservations (
+    intent_id VARCHAR(64) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    amount NUMERIC(38, 18) NOT NULL, 
+    asset VARCHAR(32) NOT NULL, 
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    released_at TIMESTAMP WITH TIME ZONE, 
+    PRIMARY KEY (intent_id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_capital_reservations_exchange_account_id ON capital_reservations (exchange_account_id);
+
+CREATE TABLE ledger_entries (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    event_type VARCHAR(40) NOT NULL, 
+    asset VARCHAR(32) NOT NULL, 
+    amount NUMERIC(38, 18) NOT NULL, 
+    reference_type VARCHAR(40) NOT NULL, 
+    reference_id VARCHAR(64) NOT NULL, 
+    event_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    metadata_json JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_ledger_entries_event_time ON ledger_entries (event_time);
+
+CREATE INDEX ix_ledger_entries_exchange_account_id ON ledger_entries (exchange_account_id);
+
+CREATE TABLE mfa_recovery_codes (
+    id VARCHAR(32) NOT NULL, 
+    user_id VARCHAR(32) NOT NULL, 
+    code_hash VARCHAR(64) NOT NULL, 
+    used_at TIMESTAMP WITH TIME ZONE, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    UNIQUE (code_hash)
+);
+
+CREATE INDEX ix_mfa_recovery_codes_user_id ON mfa_recovery_codes (user_id);
+
+CREATE TABLE monte_carlo_runs (
+    id VARCHAR(32) NOT NULL, 
+    backtest_id VARCHAR(32), 
+    simulations INTEGER NOT NULL, 
+    seed INTEGER NOT NULL, 
+    metrics JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(backtest_id) REFERENCES backtests (id)
+);
+
+CREATE TABLE orders (
+    id VARCHAR(32) NOT NULL, 
+    intent_id VARCHAR(64) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    side VARCHAR(8) NOT NULL, 
+    order_type VARCHAR(32) NOT NULL, 
+    quantity NUMERIC(38, 18) NOT NULL, 
+    price NUMERIC(38, 18), 
+    stop_price NUMERIC(38, 18), 
+    status VARCHAR(32) NOT NULL, 
+    exchange_order_id VARCHAR(80), 
+    client_order_id VARCHAR(80) NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    CONSTRAINT uq_exchange_order UNIQUE (exchange_account_id, exchange_order_id), 
+    CONSTRAINT uq_intent UNIQUE (intent_id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_orders_symbol ON orders (symbol);
+
+CREATE TABLE portfolio_risk_snapshots (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    metrics JSON NOT NULL, 
+    risk_state VARCHAR(32) NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_portfolio_risk_snapshots_snapshot_time ON portfolio_risk_snapshots (snapshot_time);
+
+CREATE TABLE portfolio_snapshots (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    snapshot_time TIMESTAMP WITH TIME ZONE NOT NULL, 
+    equity NUMERIC(38, 18) NOT NULL, 
+    cash NUMERIC(38, 18) NOT NULL, 
+    gross_exposure NUMERIC(38, 18) NOT NULL, 
+    drawdown NUMERIC(18, 10) NOT NULL, 
+    payload JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_portfolio_snapshots_exchange_account_id ON portfolio_snapshots (exchange_account_id);
+
+CREATE INDEX ix_portfolio_snapshots_snapshot_time ON portfolio_snapshots (snapshot_time);
+
+CREATE TABLE positions (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    quantity NUMERIC(38, 18) NOT NULL, 
+    average_entry NUMERIC(38, 18) NOT NULL, 
+    realized_pnl NUMERIC(38, 18) NOT NULL, 
+    PRIMARY KEY (id), 
+    CONSTRAINT uq_account_position UNIQUE (exchange_account_id, symbol), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE TABLE risk_events (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32), 
+    severity VARCHAR(20) NOT NULL, 
+    risk_state VARCHAR(32) NOT NULL, 
+    reason TEXT NOT NULL, 
+    payload JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_risk_events_created_at ON risk_events (created_at);
+
+CREATE TABLE scanner_runs (
+    id VARCHAR(32) NOT NULL, 
+    universe_snapshot_id VARCHAR(32) NOT NULL, 
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    completed_at TIMESTAMP WITH TIME ZONE, 
+    config_hash VARCHAR(64) NOT NULL, 
+    status VARCHAR(20) NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(universe_snapshot_id) REFERENCES universe_snapshots (id)
+);
+
+CREATE TABLE sessions (
+    id VARCHAR(64) NOT NULL, 
+    user_id VARCHAR(32) NOT NULL, 
+    token_hash VARCHAR(64) NOT NULL, 
+    csrf_hash VARCHAR(64) NOT NULL, 
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    revoked_at TIMESTAMP WITH TIME ZONE, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    UNIQUE (token_hash)
+);
+
+CREATE INDEX ix_sessions_user_id ON sessions (user_id);
+
+CREATE TABLE setup_state (
+    id VARCHAR(32) NOT NULL, 
+    user_id VARCHAR(32), 
+    current_step INTEGER NOT NULL, 
+    completed_steps JSON NOT NULL, 
+    non_secret_config JSON NOT NULL, 
+    completed_at TIMESTAMP WITH TIME ZONE, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(user_id) REFERENCES users (id)
+);
+
+CREATE TABLE signal_features (
+    id VARCHAR(32) NOT NULL, 
+    signal_id VARCHAR(32) NOT NULL, 
+    feature_name VARCHAR(80) NOT NULL, 
+    value NUMERIC(38, 18), 
+    payload JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(signal_id) REFERENCES signals (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_signal_features_signal_id ON signal_features (signal_id);
+
+CREATE TABLE signal_outcomes (
+    id VARCHAR(32) NOT NULL, 
+    signal_id VARCHAR(32) NOT NULL, 
+    outcome VARCHAR(32) NOT NULL, 
+    return_value NUMERIC(38, 18) NOT NULL, 
+    mfe NUMERIC(38, 18) NOT NULL, 
+    mae NUMERIC(38, 18) NOT NULL, 
+    time_to_tp_seconds INTEGER, 
+    time_to_sl_seconds INTEGER, 
+    PRIMARY KEY (id), 
+    UNIQUE (signal_id), 
+    FOREIGN KEY(signal_id) REFERENCES signals (id) ON DELETE CASCADE
+);
+
+CREATE TABLE strategy_lots (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    strategy_id VARCHAR(80) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    quantity NUMERIC(38, 18) NOT NULL, 
+    cost_basis NUMERIC(38, 18) NOT NULL, 
+    realized_pnl NUMERIC(38, 18) NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id)
+);
+
+CREATE INDEX ix_strategy_lots_strategy_id ON strategy_lots (strategy_id);
+
+CREATE INDEX ix_strategy_lots_symbol ON strategy_lots (symbol);
+
+CREATE TABLE strategy_runs (
+    id VARCHAR(32) NOT NULL, 
+    strategy_id VARCHAR(32) NOT NULL, 
+    mode VARCHAR(20) NOT NULL, 
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    ended_at TIMESTAMP WITH TIME ZONE, 
+    metrics JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(strategy_id) REFERENCES strategies (id)
+);
+
+CREATE TABLE symbol_master (
+    id VARCHAR(64) NOT NULL, 
+    exchange VARCHAR(40) NOT NULL, 
+    market_type VARCHAR(20) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    base_asset_id VARCHAR(64) NOT NULL, 
+    quote_asset_id VARCHAR(64) NOT NULL, 
+    status VARCHAR(24) NOT NULL, 
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL, 
+    valid_to TIMESTAMP WITH TIME ZONE, 
+    filters JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(base_asset_id) REFERENCES asset_master (id), 
+    FOREIGN KEY(quote_asset_id) REFERENCES asset_master (id)
+);
+
+CREATE INDEX ix_symbol_master_symbol ON symbol_master (symbol);
+
+CREATE TABLE universe_memberships (
+    id VARCHAR(32) NOT NULL, 
+    snapshot_id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    eligible BOOLEAN NOT NULL, 
+    exclusion_reasons JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(snapshot_id) REFERENCES universe_snapshots (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_universe_memberships_snapshot_id ON universe_memberships (snapshot_id);
+
+CREATE TABLE walk_forward_runs (
+    id VARCHAR(32) NOT NULL, 
+    backtest_id VARCHAR(32), 
+    train_window JSON NOT NULL, 
+    test_window JSON NOT NULL, 
+    metrics JSON NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(backtest_id) REFERENCES backtests (id)
+);
+
+CREATE TABLE allocation_decisions (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    scanner_run_id VARCHAR(32), 
+    symbol VARCHAR(50) NOT NULL, 
+    strategy_id VARCHAR(80) NOT NULL, 
+    reserved_capital NUMERIC(38, 18) NOT NULL, 
+    risk_budget NUMERIC(38, 18) NOT NULL, 
+    decision VARCHAR(24) NOT NULL, 
+    reason TEXT NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id), 
+    FOREIGN KEY(scanner_run_id) REFERENCES scanner_runs (id)
+);
+
+CREATE TABLE fills (
+    id VARCHAR(32) NOT NULL, 
+    exchange_account_id VARCHAR(32) NOT NULL, 
+    order_id VARCHAR(32) NOT NULL, 
+    trade_id VARCHAR(80) NOT NULL, 
+    quantity NUMERIC(38, 18) NOT NULL, 
+    price NUMERIC(38, 18) NOT NULL, 
+    fee_asset VARCHAR(32), 
+    fee_amount NUMERIC(38, 18) NOT NULL, 
+    PRIMARY KEY (id), 
+    CONSTRAINT uq_exchange_trade UNIQUE (exchange_account_id, trade_id), 
+    FOREIGN KEY(exchange_account_id) REFERENCES exchange_accounts (id), 
+    FOREIGN KEY(order_id) REFERENCES orders (id)
+);
+
+CREATE TABLE scanner_candidates (
+    id VARCHAR(32) NOT NULL, 
+    scanner_run_id VARCHAR(32) NOT NULL, 
+    symbol VARCHAR(50) NOT NULL, 
+    rank INTEGER NOT NULL, 
+    score NUMERIC(18, 8) NOT NULL, 
+    confidence NUMERIC(18, 8) NOT NULL, 
+    net_edge_bps NUMERIC(18, 8) NOT NULL, 
+    blocked BOOLEAN NOT NULL, 
+    reasons JSON NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(scanner_run_id) REFERENCES scanner_runs (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_scanner_candidates_scanner_run_id ON scanner_candidates (scanner_run_id);
+
+CREATE TABLE symbol_metadata_versions (
+    id VARCHAR(32) NOT NULL, 
+    symbol_master_id VARCHAR(64) NOT NULL, 
+    version INTEGER NOT NULL, 
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL, 
+    valid_to TIMESTAMP WITH TIME ZONE, 
+    payload JSON NOT NULL, 
+    source VARCHAR(80) NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(symbol_master_id) REFERENCES symbol_master (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_symbol_metadata_versions_symbol_master_id ON symbol_metadata_versions (symbol_master_id);
+
+INSERT INTO alembic_version (version_num) VALUES ('0001_core_schema') RETURNING alembic_version.version_num;
+
+-- Running upgrade 0001_core_schema -> 0002_identity_recovery
+
+CREATE TABLE password_reset_tokens (
+    id VARCHAR(32) NOT NULL, 
+    user_id VARCHAR(32) NOT NULL, 
+    token_hash VARCHAR(64) NOT NULL, 
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    used_at TIMESTAMP WITH TIME ZONE, 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    UNIQUE (token_hash)
+);
+
+CREATE INDEX ix_password_reset_tokens_user_id ON password_reset_tokens (user_id);
+
+UPDATE alembic_version SET version_num='0002_identity_recovery' WHERE alembic_version.version_num = '0001_core_schema';
+
+COMMIT;
+

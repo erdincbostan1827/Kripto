@@ -1,0 +1,144 @@
+{
+  "classification": "PHASE177_HOST_CAPABILITY_DIAGNOSTIC_NOT_ACCEPTANCE_EVIDENCE",
+  "generated_at": "2026-08-31T14:24:14.534238+00:00",
+  "network_dns": [
+    {
+      "detail": "DNS_UNAVAILABLE:gaierror",
+      "host": "pypi.org",
+      "status": "BLOCKED"
+    },
+    {
+      "detail": "DNS_UNAVAILABLE:gaierror",
+      "host": "registry.npmjs.org",
+      "status": "BLOCKED"
+    }
+  ],
+  "open_requirement_count": 100,
+  "p0_open_requirement_count": 42,
+  "profiles": {
+    "dependency-locks": {
+      "acceptance_complete": false,
+      "npm_available": true,
+      "runnable_now": true,
+      "source_locks_ready": false,
+      "uv_available": true
+    },
+    "frontend-browser": {
+      "dependency_locks_ready": false,
+      "detail": "Browser engine and Playwright are host capabilities only; frontend dependency locks/build remain mandatory.",
+      "host_tooling_ready": true,
+      "runnable_now": false
+    },
+    "runtime": {
+      "host_tooling_ready": false,
+      "runnable_now": false
+    },
+    "supply-chain": {
+      "available_scanners": [],
+      "runnable_now": false,
+      "trusted_ci_still_required": true
+    }
+  },
+  "python_modules": {
+    "playwright": "READY"
+  },
+  "schema_version": "1.0",
+  "tools": [
+    {
+      "name": "git",
+      "path": "/usr/bin/git",
+      "status": "READY"
+    },
+    {
+      "name": "python",
+      "path": "/opt/pyvenv/bin/python",
+      "status": "READY"
+    },
+    {
+      "name": "uv",
+      "path": "/opt/pyvenv/bin/uv",
+      "status": "READY"
+    },
+    {
+      "name": "npm",
+      "path": "/opt/nvm/versions/node/v22.16.0/bin/npm",
+      "status": "READY"
+    },
+    {
+      "name": "node",
+      "path": "/opt/nvm/versions/node/v22.16.0/bin/node",
+      "status": "READY"
+    },
+    {
+      "name": "docker",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "podman",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "cargo",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "rustc",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "trivy",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "gitleaks",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "bandit",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "semgrep",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "pip-audit",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "syft",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "cosign",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "chromium",
+      "path": "/usr/bin/chromium",
+      "status": "READY"
+    },
+    {
+      "name": "google-chrome",
+      "path": null,
+      "status": "BLOCKED"
+    },
+    {
+      "name": "firefox",
+      "path": null,
+      "status": "BLOCKED"
+    }
+  ],
+  "truth_policy": "Host capabilities and successful DNS/tool probes are prerequisites only; they never promote requirements or release gates to PASS."
+}

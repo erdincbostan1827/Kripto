@@ -1,0 +1,93 @@
+name: Lock Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Git ref whose dependency manifests will be resolved for review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lock-promotion-${{ github.event.inputs.source_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '24'
+  UV_VERSION: '0.10.0'
+
+jobs:
+  resolve-locks-for-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout requested source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Require immutable source ref
+        run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.source_ref }}"
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify workflow action pins
+        run: python scripts/verify_workflow_action_pins.py
+
+      - name: Snapshot immutable lock inputs
+        run: python scripts/lock_input_guard.py snapshot
+
+      - name: Resolve backend lock
+        run: |
+          python -m pip install --disable-pip-version-check "uv==${UV_VERSION}"
+          uv lock
+          uv lock --locked
+
+      - name: Resolve frontend lock
+        working-directory: frontend
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Verify lock inputs were not mutated
+        run: python scripts/lock_input_guard.py verify --expected-source-sha "$(git rev-parse HEAD)"
+
+      - name: Record review metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/lock-promotion
+          git rev-parse HEAD > reports/lock-promotion/SOURCE_SHA.txt
+          cp reports/ACCEPTANCE_REF_VALIDATION.json reports/lock-promotion/SOURCE_REF_VALIDATION.json
+          sha256sum uv.lock frontend/package-lock.json > reports/lock-promotion/SHA256SUMS.txt
+          git diff --no-index /dev/null uv.lock > reports/lock-promotion/uv.lock.patch || true
+          git diff --no-index /dev/null frontend/package-lock.json > reports/lock-promotion/frontend-package-lock.patch || true
+          printf '%s\n' 'Generated locks are REVIEW EVIDENCE only. They become source-compliant only after explicit review and commit to the candidate source.' > reports/lock-promotion/TRUTH_POLICY.txt
+
+      - name: Create and verify lock promotion manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/lock_promotion_manifest.py create
+          python scripts/lock_promotion_manifest.py verify --expected-source-sha "$(git rev-parse HEAD)"
+
+      - name: Upload lock review bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lock-promotion-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            uv.lock
+            frontend/package-lock.json
+            reports/lock-promotion/**

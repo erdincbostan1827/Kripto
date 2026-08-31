@@ -1,0 +1,348 @@
+name: Production Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      acceptance_ref:
+        description: Immutable git tag or SHA to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-acceptance-${{ github.event.inputs.acceptance_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '24'
+  UV_VERSION: '0.10.0'
+
+jobs:
+  ci-build-evidence:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+      container_image: ${{ steps.identity.outputs.container_image }}
+      container_digest: ${{ steps.image_digest.outputs.container_digest }}
+      build_artifact_id: ${{ steps.upload_build_evidence.outputs.artifact-id }}
+      build_artifact_digest: ${{ steps.upload_build_evidence.outputs.artifact-digest }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.inputs.acceptance_ref }}
+          fetch-depth: 0
+
+      - name: Enforce immutable acceptance ref
+        run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.acceptance_ref }}"
+
+      - name: Verify immutable GitHub Action pins
+        run: python scripts/verify_workflow_action_pins.py
+
+      - name: Verify production acceptance contract parity
+        run: python scripts/verify_acceptance_contract_parity.py
+
+      - name: Verify committed source locks
+        run: python scripts/verify_source_locks.py
+
+      - name: Candidate identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse HEAD)"
+          test -n "$SHA"
+          IMAGE="ghcr.io/${{ github.repository }}/acceptance:${SHA}"
+          echo "source_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "container_image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "SOURCE_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "ACCEPTANCE_CONTAINER_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pinned uv
+        run: python -m pip install --disable-pip-version-check "uv==${UV_VERSION}"
+
+      - name: Verify backend lock is reproducible
+        run: uv lock --locked
+
+      - name: Install frontend from committed lock
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install backend from lock
+        run: uv sync --locked --extra test
+      - name: Static and secret checks
+        run: |
+          uv run python -m compileall -q backend scripts tests
+          uv run python scripts/prohibited_scan.py
+          uv run python scripts/secret_scan.py
+          uv run python scripts/local_sast.py
+
+      - name: Canonical local acceptance shards
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/local_acceptance
+          for i in $(seq 0 23); do
+            uv run python scripts/local_acceptance_runner.py --shard-index "$i" --shard-count 24 --timeout 1200
+          done
+          uv run python scripts/merge_local_acceptance.py --shard-count 24
+          uv run python scripts/verify_local_acceptance.py
+
+      - name: Build and push immutable acceptance image
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build -t "$ACCEPTANCE_CONTAINER_IMAGE" .
+          docker push "$ACCEPTANCE_CONTAINER_IMAGE"
+          docker pull "$ACCEPTANCE_CONTAINER_IMAGE"
+
+      - name: Capture immutable container digest
+        id: image_digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$ACCEPTANCE_CONTAINER_IMAGE")"
+          test -n "$DIGEST"
+          case "$DIGEST" in *@sha256:*) ;; *) echo 'missing immutable repo digest' >&2; exit 2;; esac
+          echo "container_digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$DIGEST" > reports/CI_CONTAINER_REPODIGEST.txt
+
+      - name: Install supply-chain scanners and capture exact toolchain receipt
+        run: |
+          python -m pip install pip-audit bandit semgrep cyclonedx-bom pip-licenses
+          python -m pip freeze | sort > reports/CI_SCANNER_VERSIONS.txt
+          python scripts/ci_toolchain_receipt.py create
+          python scripts/ci_toolchain_receipt.py verify --expected-git-sha "$(git rev-parse HEAD)" --verify-installed
+
+      - name: Resolve scanner images to immutable digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/external_acceptance
+          resolve_digest() {
+            local image="$1"
+            docker pull "$image" >/dev/null
+            local digest
+            digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image")"
+            case "$digest" in *@sha256:????????????????????????????????????????????????????????????????) ;; *) echo "invalid RepoDigest for $image" >&2; exit 2;; esac
+            printf '%s' "$digest"
+          }
+          GITLEAKS_IMAGE='ghcr.io/gitleaks/gitleaks:v8.28.0'
+          TRIVY_IMAGE='aquasec/trivy:0.65.0'
+          SYFT_IMAGE='anchore/syft:v1.32.0'
+          GITLEAKS_DIGEST="$(resolve_digest "$GITLEAKS_IMAGE")"
+          TRIVY_DIGEST="$(resolve_digest "$TRIVY_IMAGE")"
+          SYFT_DIGEST="$(resolve_digest "$SYFT_IMAGE")"
+          export GITLEAKS_IMAGE TRIVY_IMAGE SYFT_IMAGE GITLEAKS_DIGEST TRIVY_DIGEST SYFT_DIGEST
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          payload = {
+              'schema_version': '1.0',
+              'classification': 'CI_SCANNER_IMAGE_DIGEST_RECEIPT',
+              'scanners': {
+                  'gitleaks': {'requested_image': os.environ['GITLEAKS_IMAGE'], 'resolved_digest': os.environ['GITLEAKS_DIGEST']},
+                  'trivy': {'requested_image': os.environ['TRIVY_IMAGE'], 'resolved_digest': os.environ['TRIVY_DIGEST']},
+                  'syft': {'requested_image': os.environ['SYFT_IMAGE'], 'resolved_digest': os.environ['SYFT_DIGEST']},
+              },
+          }
+          Path('reports/external_acceptance/scanner_image_digests.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
+          PY
+          python scripts/external/verify_scanner_image_digests.py
+          printf 'GITLEAKS_DIGEST=%s\nTRIVY_DIGEST=%s\nSYFT_DIGEST=%s\n' "$GITLEAKS_DIGEST" "$TRIVY_DIGEST" "$SYFT_DIGEST" >> "$GITHUB_ENV"
+
+      - name: Supply-chain scans and real SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/external_acceptance
+          uv export --locked --no-dev --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
+          pip-audit -r reports/external_acceptance/requirements.locked.txt
+          bandit -q -r backend scripts
+          semgrep --config auto --error backend scripts
+          docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
+          docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
+          docker run --rm -v "$PWD:/repo" "$SYFT_DIGEST" dir:/repo -o cyclonedx-json > reports/external_acceptance/sbom.cdx.json
+          test -s reports/external_acceptance/sbom.cdx.json
+          pip-licenses --format=json --with-urls --output-file=reports/external_acceptance/dependency_licenses.json
+          python scripts/external/verify_supply_chain_artifacts.py
+
+      - name: Capture real CI provenance
+        env:
+          CI: 'true'
+          CI_RUN_ID: ${{ github.run_id }}
+          CI_COMMIT_SHA: ${{ steps.identity.outputs.source_sha }}
+        run: python scripts/external/provenance_capture.py
+
+      - name: Generate canonical release metadata
+        run: |
+          python scripts/local_source_provenance.py
+          python scripts/generate_release_manifest.py
+          python scripts/generate_project_status.py
+          python scripts/verify_release_consistency.py
+          python scripts/production_readiness_dossier.py
+
+      - name: Create fail-closed build evidence transfer manifest
+        run: python scripts/ci_build_evidence_manifest.py create
+
+      - name: Upload build evidence
+        id: upload_build_evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-build-evidence-${{ steps.identity.outputs.source_sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            uv.lock
+            frontend/package-lock.json
+            frontend/dist/**
+            reports/local_acceptance/**
+            reports/external_acceptance/sbom.cdx.json
+            reports/external_acceptance/dependency_licenses.json
+            reports/external_acceptance/supply_chain_artifact_verification.json
+            reports/external_acceptance/scanner_image_digests.json
+            reports/external_acceptance/provenance.json
+            reports/CI_SCANNER_VERSIONS.txt
+            reports/CI_TOOLCHAIN_RECEIPT.json
+            reports/CI_CONTAINER_REPODIGEST.txt
+            reports/ACCEPTANCE_REF_VALIDATION.json
+            RELEASE_MANIFEST.json
+            reports/PROJECT_STATUS.json
+            reports/RELEASE_CONSISTENCY.json
+            reports/PRODUCTION_READINESS_DOSSIER.json
+            reports/CI_BUILD_EVIDENCE_MANIFEST.json
+
+  real-target-acceptance:
+    permissions:
+      contents: read
+      id-token: write
+    needs: ci-build-evidence
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    steps:
+      - name: Checkout same candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.ci-build-evidence.outputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore CI build evidence for the exact candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ci-build-evidence-${{ needs.ci-build-evidence.outputs.source_sha }}
+          path: .
+
+      - name: Verify transferred CI build evidence before use
+        run: >-
+          python scripts/ci_build_evidence_manifest.py verify
+          --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
+          --expected-repository "${{ github.repository }}"
+          --expected-run-id "${{ github.run_id }}"
+          --expected-run-attempt "${{ github.run_attempt }}"
+          --expected-workflow-ref "${{ github.workflow_ref }}"
+
+      - name: Provision exact acceptance Python CLI toolchain from CI receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ci_toolchain_receipt.py pip-specs > /tmp/ci-toolchain-requirements.txt
+          python -m pip install --disable-pip-version-check -r /tmp/ci-toolchain-requirements.txt
+          python scripts/ci_toolchain_receipt.py verify --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}" --verify-installed
+          npm --version
+          docker --version
+
+      - name: Bind GitHub artifact identity to transferred build evidence
+        env:
+          BUILD_ARTIFACT_ID: ${{ needs.ci-build-evidence.outputs.build_artifact_id }}
+          BUILD_ARTIFACT_DIGEST: ${{ needs.ci-build-evidence.outputs.build_artifact_digest }}
+          BUILD_ARTIFACT_NAME: ci-build-evidence-${{ needs.ci-build-evidence.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BUILD_ARTIFACT_ID"
+          test -n "$BUILD_ARTIFACT_DIGEST"
+          python scripts/ci_artifact_identity.py             --artifact-id "$BUILD_ARTIFACT_ID"             --artifact-digest "$BUILD_ARTIFACT_DIGEST"             --artifact-name "$BUILD_ARTIFACT_NAME"             --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
+
+      - name: Pull and verify exact immutable acceptance image
+        env:
+          ACCEPTANCE_CONTAINER_IMAGE: ${{ needs.ci-build-evidence.outputs.container_image }}
+          EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$EXPECTED_CONTAINER_DIGEST"
+          ACTUAL="$(docker inspect --format='{{index .RepoDigests 0}}' "$EXPECTED_CONTAINER_DIGEST")"
+          test "$ACTUAL" = "$EXPECTED_CONTAINER_DIGEST"
+          printf '%s\n' "$ACTUAL" > reports/CI_CONTAINER_REPODIGEST_VERIFIED.txt
+
+      - name: Run fail-closed real-target orchestrator
+        env:
+          BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+          BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
+          BINANCE_TESTNET_EXECUTE: 'YES'
+          PITR_DRILL_COMMAND: ${{ secrets.PITR_DRILL_COMMAND }}
+          PITR_EVIDENCE_JSON: ${{ secrets.PITR_EVIDENCE_JSON }}
+          HA_DRILL_COMMAND: ${{ secrets.HA_DRILL_COMMAND }}
+          HA_EVIDENCE_JSON: ${{ secrets.HA_EVIDENCE_JSON }}
+          WORM_ACCEPTANCE_COMMAND: ${{ secrets.WORM_ACCEPTANCE_COMMAND }}
+          WORM_EVIDENCE_JSON: ${{ secrets.WORM_EVIDENCE_JSON }}
+          RESTART_DRILL_COMMAND: ${{ secrets.RESTART_DRILL_COMMAND }}
+          RESTART_EVIDENCE_JSON: ${{ secrets.RESTART_EVIDENCE_JSON }}
+          PROVENANCE_SIGN_VERIFY_COMMAND: ${{ secrets.PROVENANCE_SIGN_VERIFY_COMMAND }}
+          ACCEPTANCE_CONTAINER_IMAGE: ${{ needs.ci-build-evidence.outputs.container_image }}
+          ACCEPTANCE_ENVIRONMENT_ID: ${{ vars.ACCEPTANCE_ENVIRONMENT_ID }}
+          ACCEPTANCE_TOPOLOGY_HASH: ${{ vars.ACCEPTANCE_TOPOLOGY_HASH }}
+          ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"
+          ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+          LEDGER_CHECKPOINT_SIGN_COMMAND: ${{ secrets.LEDGER_CHECKPOINT_SIGN_COMMAND }}
+          ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND }}
+          CI: 'true'
+          CI_RUN_ID: ${{ github.run_id }}
+          CI_COMMIT_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
+        run: python scripts/production_acceptance_orchestrator.py --confirm-real-target
+
+      - name: Final release gate must remain fail-closed unless every gate is satisfied
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/generate_release_manifest.py
+          python scripts/generate_project_status.py
+          python scripts/verify_release_consistency.py
+          python scripts/release_gate.py | tee reports/CI_RELEASE_GATE.txt
+
+      - name: Upload real-target evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: real-target-evidence-${{ needs.ci-build-evidence.outputs.source_sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            reports/external_acceptance/**
+            reports/PRODUCTION_ACCEPTANCE_ORCHESTRATION.json
+            reports/CI_BUILD_ARTIFACT_IDENTITY.json
+            reports/CI_RELEASE_GATE.txt
+            RELEASE_MANIFEST.json

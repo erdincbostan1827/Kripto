@@ -1,0 +1,12 @@
+{
+  "classification": "FRESH_GIT_BOUND_TEST_INVENTORY",
+  "collection_reference": "reports/TEST_COLLECTION.txt",
+  "collection_sha256": "d86c3e73f44b1888a563605c6419d7e9686760a4a941c8a0263e080fd5b4547d",
+  "full_regression_reference": "reports/local_acceptance/full_regression_manifest.json",
+  "full_regression_sha256": "5e95b521b9663e2c37d62ba4d83ea2ff01fa1de1a7f20d01886c4e2937ad44a5",
+  "generated_at": "2026-08-31T14:21:21.440827+00:00",
+  "git_commit_sha": "5a0b16d58b6a6727675d075d04032acb3e86f38d",
+  "schema_version": "1.0",
+  "test_count": 1180,
+  "test_file_count": 232
+}

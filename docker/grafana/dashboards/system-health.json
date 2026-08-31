@@ -1,0 +1,15 @@
+{
+  "title": "Trading Platform Health",
+  "uid": "ctp-health",
+  "schemaVersion": 41,
+  "version": 2,
+  "refresh": "15s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id":1,"type":"stat","title":"Trading API Up","targets":[{"expr":"up{job=\"trading-app\"}","legendFormat":"app"}],"gridPos":{"h":5,"w":6,"x":0,"y":0}},
+    {"id":2,"type":"timeseries","title":"Resident Memory","targets":[{"expr":"process_resident_memory_bytes{job=\"trading-app\"}","legendFormat":"bytes"}],"gridPos":{"h":8,"w":9,"x":6,"y":0}},
+    {"id":3,"type":"timeseries","title":"CPU Time Rate","targets":[{"expr":"rate(process_cpu_seconds_total{job=\"trading-app\"}[5m])","legendFormat":"cpu"}],"gridPos":{"h":8,"w":9,"x":15,"y":0}},
+    {"id":4,"type":"timeseries","title":"Python GC Activity","targets":[{"expr":"rate(python_gc_objects_collected_total{job=\"trading-app\"}[5m])","legendFormat":"gen {{generation}}"}],"gridPos":{"h":8,"w":12,"x":0,"y":8}},
+    {"id":5,"type":"stat","title":"Scrape Health","targets":[{"expr":"min_over_time(up{job=\"trading-app\"}[5m])","legendFormat":"5m min"}],"gridPos":{"h":5,"w":6,"x":12,"y":8}}
+  ]
+}
