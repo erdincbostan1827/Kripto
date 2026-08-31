@@ -67,10 +67,17 @@ def test_phase176_dependency_lock_runner_redacts_and_classifies(monkeypatch, tmp
     secret = "npm-secret-abcdef"
     monkeypatch.setenv("NPM_TOKEN", secret)
     monkeypatch.setattr("scripts.bootstrap_dependency_locks.shutil.which", lambda _: "/usr/bin/npm")
-    monkeypatch.setattr(
-        "scripts.bootstrap_dependency_locks.subprocess.run",
-        lambda *a, **k: subprocess.CompletedProcess(a[0], 1, f"offline cache miss; token={secret}"),
-    )
+
+    class FakeProc:
+        returncode = 1
+        pid = 12345
+        def communicate(self, timeout=None):
+            return (f"offline cache miss; token={secret}", None)
+        def poll(self):
+            return self.returncode
+
+    monkeypatch.setattr("scripts.bootstrap_dependency_locks.subprocess.Popen", lambda *a, **k: FakeProc())
     result = lock_run(["npm", "install"], tmp_path, offline=False)
     assert result["blocker"] == "OFFLINE_CACHE_INCOMPLETE"
     assert secret not in result["output"]
+    assert result["process_tree_terminated"] is False

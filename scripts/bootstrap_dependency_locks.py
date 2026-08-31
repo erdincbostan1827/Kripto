@@ -4,9 +4,11 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
@@ -21,6 +23,8 @@ REPORT = ROOT / "reports" / "dependency_lock_bootstrap.json"
 TRANSACTION_JOURNAL = ".dependency-lock-bootstrap.transaction.json"
 TRANSACTION_PREFIX = ".lock-bootstrap-txn-"
 TARGETS = {"uv": Path("uv.lock"), "npm": Path("frontend/package-lock.json")}
+LOCK_RESOLUTION_TIMEOUT_SECONDS = 600
+PROCESS_TREE_GRACE_SECONDS = 2.0
 
 
 def _digest(path: Path) -> str | None:
@@ -45,6 +49,43 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
         raise
 
 
+def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
+    """Terminate the resolver and descendants so a timeout cannot orphan npm/uv workers."""
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(proc.pid, signal.SIGTERM)
+        elif os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+            )
+        else:
+            proc.terminate()
+    except (ProcessLookupError, OSError, subprocess.SubprocessError):
+        try:
+            proc.terminate()
+        except (ProcessLookupError, OSError):
+            pass
+
+    deadline = time.monotonic() + PROCESS_TREE_GRACE_SECONDS
+    while proc.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()
+    except (ProcessLookupError, OSError):
+        pass
+
+
 def _run(cmd: list[str], cwd: Path, *, offline: bool) -> dict:
     env = os.environ.copy()
     if offline:
@@ -55,29 +96,54 @@ def _run(cmd: list[str], cwd: Path, *, offline: bool) -> dict:
     tool = shutil.which(cmd[0])
     if tool is None:
         return {"command": cmd, "exit_code": None, "ok": False, "blocker": f"TOOL_UNAVAILABLE:{cmd[0]}", "output": ""}
+
+    popen_kwargs: dict = {
+        "cwd": cwd,
+        "env": env,
+        "text": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+    elif os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+    proc = subprocess.Popen(cmd, **popen_kwargs)
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=cwd,
-            env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=600,
-            check=False,
-        )
+        output, _ = proc.communicate(timeout=LOCK_RESOLUTION_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as exc:
-        output = exc.stdout or ""
-        if isinstance(output, bytes):
-            output = output.decode(errors="replace")
+        partial = exc.output or ""
+        if isinstance(partial, bytes):
+            partial = partial.decode(errors="replace")
+        _terminate_process_tree(proc)
+        try:
+            final_output, _ = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except (ProcessLookupError, OSError):
+                pass
+            final_output, _ = proc.communicate()
+        output = final_output or partial
         safe_output = redact_text(output)[-8000:]
-        return {"command": cmd, "exit_code": None, "ok": False, "blocker": "COMMAND_OR_NETWORK_TIMEOUT", "output": safe_output}
+        return {
+            "command": cmd,
+            "exit_code": None,
+            "ok": False,
+            "blocker": "COMMAND_OR_NETWORK_TIMEOUT",
+            "output": safe_output,
+            "process_tree_terminated": proc.poll() is not None,
+        }
+
+    output = output or ""
     return {
         "command": cmd,
         "exit_code": proc.returncode,
         "ok": proc.returncode == 0,
-        "blocker": None if proc.returncode == 0 else classify_blocker(proc.stdout or "", proc.returncode, tool=cmd[0]),
-        "output": redact_text(proc.stdout or "")[-8000:],
+        "blocker": None if proc.returncode == 0 else classify_blocker(output, proc.returncode, tool=cmd[0]),
+        "output": redact_text(output)[-8000:],
+        "process_tree_terminated": False,
     }
 
 

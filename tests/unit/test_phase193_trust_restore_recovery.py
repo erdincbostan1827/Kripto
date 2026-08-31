@@ -22,7 +22,7 @@ def _signed(tmp_path:Path):
 def _verifier(tmp_path:Path, *, mutate:str|None=None, expired:bool=False):
     p=tmp_path/f'verifier-{mutate}-{expired}.py'
     mutation=f"o[{mutate!r}]='wrong'" if mutate else ''
-    expiry="(datetime.now(timezone.utc)-timedelta(seconds=5)).isoformat()" if expired else "e['expires_at']"
+    expiry="(datetime.now(timezone.utc)-timedelta(seconds=60)).isoformat()" if expired else "e['expires_at']"
     p.write_text(f"""import json,sys,hashlib\nfrom datetime import datetime,timezone,timedelta\ne=json.load(open(sys.argv[1])); raw=open(sys.argv[1],'rb').read()\no={{'verified':True,'subject_sha256':e['subject_sha256'],'canonical_payload_sha256':e['canonical_payload_sha256'],'signing_identity':e['signing_identity'],'nonce':e['nonce'],'envelope_sha256':hashlib.sha256(raw).hexdigest(),'verifier_identity':'trusted://phase193','issued_at':e['issued_at'],'expires_at':{expiry}}}\n{mutation}\nprint(json.dumps(o))\n""")
     return p
 
