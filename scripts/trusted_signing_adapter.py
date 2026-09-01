@@ -1,8 +1,11 @@
 from __future__ import annotations
-import argparse, base64, hashlib, json, os, secrets, subprocess, tempfile
+import argparse, base64, hashlib, json, os, secrets, subprocess, tempfile, sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+_IMPORT_ROOT = Path(__file__).resolve().parents[1]
+if str(_IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_IMPORT_ROOT))
 from scripts.bounded_subprocess import run_captured_split
 
 DEFAULT_TTL_SECONDS=300

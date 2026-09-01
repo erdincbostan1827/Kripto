@@ -5,12 +5,16 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+_IMPORT_ROOT = Path(__file__).resolve().parents[1]
+if str(_IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_IMPORT_ROOT))
 from scripts.bounded_subprocess import run_captured
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = _IMPORT_ROOT
 OUT_JSON = ROOT / "reports" / "TEST_INVENTORY.json"
 OUT_TEXT = ROOT / "reports" / "TEST_COUNT.txt"
 OUT_COLLECTION = ROOT / "reports" / "TEST_COLLECTION.txt"

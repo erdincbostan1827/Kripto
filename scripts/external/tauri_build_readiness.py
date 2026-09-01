@@ -4,13 +4,17 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 
+_IMPORT_ROOT = Path(__file__).resolve().parents[2]
+if str(_IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_IMPORT_ROOT))
 from scripts.bounded_subprocess import run_captured
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = _IMPORT_ROOT
 FRONTEND = ROOT / 'frontend'
 TAURI = FRONTEND / 'src-tauri'
 OUT = ROOT / 'reports' / 'external_acceptance' / 'tauri_build_readiness.json'
