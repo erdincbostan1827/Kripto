@@ -6,25 +6,28 @@ from pathlib import Path
 from secrets import token_hex
 import json
 import os
-import subprocess
+from scripts.bounded_subprocess import run_captured
 from typing import Any
 
 from backend.app.release.acceptance_contract import acceptance_contract_sha256
 from backend.app.release.path_integrity import PathIntegrityError, resolve_without_symlink_components, strict_regular_file
 
 CURRENT_CHALLENGE_SCHEMA = "2.3"
+GIT_STATUS_UNAVAILABLE_MARKER = "__GIT_STATUS_UNAVAILABLE__"
 
 
 def _git_sha(root: Path) -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+        proc = run_captured(["git", "rev-parse", "HEAD"], cwd=root, timeout=10)
+        return proc.stdout.strip() if proc.returncode == 0 else "UNAVAILABLE"
     except Exception:
         return "UNAVAILABLE"
 
 
 def _git_tree_sha(root: Path) -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+        proc = run_captured(["git", "rev-parse", "HEAD^{tree}"], cwd=root, timeout=10)
+        return proc.stdout.strip() if proc.returncode == 0 else "UNAVAILABLE"
     except Exception:
         return "UNAVAILABLE"
 
@@ -37,15 +40,14 @@ def _tracked_source_dirty_paths(root: Path, *, extra_ignored: set[str] | None = 
     this prevents a clean HEAD SHA from masking executable worktree substitutions.
     """
     try:
-        proc = subprocess.run(
+        proc = run_captured(
             ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-            cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            timeout=10, check=False,
+            cwd=root, timeout=10,
         )
         if proc.returncode != 0:
-            return []
+            return [GIT_STATUS_UNAVAILABLE_MARKER]
     except Exception:
-        return []
+        return [GIT_STATUS_UNAVAILABLE_MARKER]
     dirty: list[str] = []
     for raw in (proc.stdout or "").splitlines():
         if len(raw) < 4:
@@ -136,6 +138,8 @@ def verify_challenge(path: Path, *, root: Path, max_age_hours: int = 24, require
             if payload.get("source_worktree_clean_at_creation") is not True:
                 problems.append("CHALLENGE_SOURCE_DIRTY_AT_CREATION")
             dirty_now = _tracked_source_dirty_paths(root, extra_ignored=challenge_ignored)
+            if GIT_STATUS_UNAVAILABLE_MARKER in dirty_now:
+                problems.append("CHALLENGE_SOURCE_STATUS_UNAVAILABLE")
             if dirty_now:
                 problems.append("CHALLENGE_SOURCE_WORKTREE_DIRTY")
         if schema_version in {"2.2", "2.3"}:
@@ -167,7 +171,7 @@ def verify_challenge(path: Path, *, root: Path, max_age_hours: int = 24, require
         env = dict(os.environ)
         env["ACCEPTANCE_CHALLENGE_PATH"] = str(path.resolve())
         try:
-            proc = subprocess.run(["bash", "-lc", trust_command], cwd=root, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60, check=False)
+            proc = run_captured(["bash", "-lc", trust_command], cwd=root, env=env, timeout=60)
             if proc.returncode == 0:
                 trust_status = "VERIFIED_BY_EXTERNAL_COMMAND"
             else:

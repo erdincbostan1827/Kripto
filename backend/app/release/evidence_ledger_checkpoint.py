@@ -5,7 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 import json
 import os
-import subprocess
+from scripts.bounded_subprocess import run_captured
 from typing import Any
 
 from backend.app.release.acceptance_challenge import verify_challenge
@@ -125,7 +125,10 @@ def verify_ledger_checkpoint(
         problems.append("LEDGER_CHECKPOINT_CHALLENGE_MISMATCH")
 
     try:
-        current_git = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+        git_proc = run_captured(["git", "rev-parse", "HEAD"], cwd=root, timeout=10)
+        current_git = git_proc.stdout.strip() if git_proc.returncode == 0 else None
+        if not current_git:
+            problems.append("LEDGER_CHECKPOINT_GIT_UNAVAILABLE")
     except Exception:
         current_git = None
         problems.append("LEDGER_CHECKPOINT_GIT_UNAVAILABLE")
@@ -178,9 +181,8 @@ def verify_ledger_checkpoint(
             "ACCEPTANCE_LEDGER_CHECKPOINT_SIGNATURE_PATH": str(sig_path),
         })
         try:
-            proc = subprocess.run(
-                ["bash", "-lc", trust_command], cwd=root, env=env, text=True,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60, check=False,
+            proc = run_captured(
+                ["bash", "-lc", trust_command], cwd=root, env=env, timeout=60,
             )
             if proc.returncode == 0:
                 trust_status = "VERIFIED_BY_EXTERNAL_COMMAND"

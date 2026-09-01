@@ -8,6 +8,8 @@ import json
 import shutil
 import subprocess
 
+from scripts.bounded_subprocess import run_captured
+
 
 @dataclass(frozen=True)
 class AcceptanceAttempt:
@@ -39,8 +41,7 @@ def run_command_attempt(*, key: str, command: list[str], root: Path, evidence_di
         return AcceptanceAttempt(key, tuple(command), False, None, real_system, "BLOCKED",
                                  str(path.relative_to(root)), _sha(path), observed, f"TOOL_UNAVAILABLE:{tool}")
     try:
-        proc = subprocess.run(command, cwd=root, text=True, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, timeout=timeout_seconds, check=False)
+        proc = run_captured(command, cwd=root, timeout=timeout_seconds)
         path.write_text(proc.stdout or "", encoding="utf-8")
         ok = proc.returncode == 0 and real_system
         blocker = None if ok else ("SIMULATED_NOT_EXTERNAL_ACCEPTANCE" if proc.returncode == 0 else f"EXIT_CODE:{proc.returncode}")
@@ -48,7 +49,10 @@ def run_command_attempt(*, key: str, command: list[str], root: Path, evidence_di
                                  "PASS" if ok else "BLOCKED", str(path.relative_to(root)),
                                  _sha(path), observed, blocker)
     except subprocess.TimeoutExpired as exc:
-        out = (exc.stdout or "") + "\nTIMEOUT\n"
+        partial = exc.stdout or ""
+        if isinstance(partial, bytes):
+            partial = partial.decode(errors="replace")
+        out = partial + "\nTIMEOUT\n"
         path.write_text(out, encoding="utf-8")
         return AcceptanceAttempt(key, tuple(command), True, None, real_system, "BLOCKED",
                                  str(path.relative_to(root)), _sha(path), observed, "TIMEOUT")
