@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 
+from scripts.bounded_subprocess import run_captured
+
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / 'frontend'
 TAURI = FRONTEND / 'src-tauri'
@@ -31,7 +33,7 @@ def run_cmd(cmd: list[str], cwd: Path, timeout: int) -> dict:
     if not shutil.which(cmd[0]):
         return {'command': cmd, 'status': 'BLOCKED', 'exit_code': None, 'blocker': f'TOOL_UNAVAILABLE:{cmd[0]}'}
     try:
-        p = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        p = run_captured(cmd, cwd=cwd, timeout=timeout)
         return {'command': cmd, 'status': 'PASS' if p.returncode == 0 else 'BLOCKED', 'exit_code': p.returncode, 'blocker': None if p.returncode == 0 else f'EXIT_CODE:{p.returncode}', 'output': (p.stdout or '')[-12000:]}
     except subprocess.TimeoutExpired as e:
         return {'command': cmd, 'status': 'BLOCKED', 'exit_code': None, 'blocker': 'TIMEOUT', 'output': str(e)}

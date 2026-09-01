@@ -3,6 +3,8 @@ import argparse, base64, hashlib, json, os, secrets, subprocess, tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+from scripts.bounded_subprocess import run_captured_split
+
 DEFAULT_TTL_SECONDS=300
 MAX_TTL_SECONDS=900
 CLOCK_SKEW_SECONDS=30
@@ -80,7 +82,7 @@ def verify_external_signature(*, envelope:Path, verifier_command:list[str], veri
     if expires <= issued or (expires-issued).total_seconds()>MAX_TTL_SECONDS: raise RuntimeError('TRUSTED_SIGNING_VALIDITY_WINDOW_INVALID')
     if now < issued-timedelta(seconds=CLOCK_SKEW_SECONDS): raise RuntimeError('TRUSTED_SIGNING_NOT_YET_VALID')
     if now > expires+timedelta(seconds=CLOCK_SKEW_SECONDS): raise RuntimeError('TRUSTED_SIGNING_EXPIRED')
-    try: proc=subprocess.run([*verifier_command,str(envelope.resolve())],text=True,capture_output=True,timeout=timeout_seconds,check=False,shell=False)
+    try: proc=run_captured_split([*verifier_command,str(envelope.resolve())],cwd=envelope.resolve().parent,timeout=timeout_seconds)
     except subprocess.TimeoutExpired as exc: raise RuntimeError('TRUSTED_SIGNATURE_VERIFIER_TIMEOUT') from exc
     if proc.returncode!=0: raise RuntimeError(f'TRUSTED_SIGNATURE_VERIFIER_FAILED:{proc.returncode}')
     lines=[x for x in proc.stdout.splitlines() if x.strip()]

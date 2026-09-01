@@ -8,6 +8,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from scripts.bounded_subprocess import run_captured
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT_JSON = ROOT / "reports" / "TEST_INVENTORY.json"
 OUT_TEXT = ROOT / "reports" / "TEST_COUNT.txt"
@@ -104,7 +106,7 @@ def generate(*, timeout: int = 120) -> dict:
     current = _git_sha(ROOT)
     if current is None:
         raise RuntimeError("GIT_IDENTITY_UNAVAILABLE")
-    proc = subprocess.run(["pytest", "--collect-only", "-q"], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+    proc = run_captured(["pytest", "--collect-only", "-q"], cwd=ROOT, timeout=timeout)
     if proc.returncode != 0:
         raise RuntimeError(f"PYTEST_COLLECTION_FAILED:{proc.returncode}")
     collection = proc.stdout or ""

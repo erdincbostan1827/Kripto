@@ -13,6 +13,8 @@ from hashlib import sha256
 from datetime import datetime, timezone
 from pathlib import Path
 
+from scripts.bounded_subprocess import run_captured
+
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / "frontend"
 REPORTS = ROOT / "reports" / "external_acceptance"
@@ -30,7 +32,7 @@ def _run(cmd: list[str], *, cwd: Path = ROOT, timeout: int = 300) -> dict:
     if not tool:
         return {"command": cmd, "exit_code": None, "status": "BLOCKED", "blocker": f"TOOL_UNAVAILABLE:{cmd[0]}", "output": ""}
     try:
-        p = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        p = run_captured(cmd, cwd=cwd, timeout=timeout)
         return {"command": cmd, "exit_code": p.returncode, "status": "PASS" if p.returncode == 0 else "BLOCKED", "blocker": None if p.returncode == 0 else f"EXIT_CODE:{p.returncode}", "output": (p.stdout or "")[-12000:]}
     except subprocess.TimeoutExpired as exc:
         out = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
