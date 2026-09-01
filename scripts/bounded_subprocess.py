@@ -4,10 +4,46 @@ import os
 import signal
 import subprocess
 import time
+import threading
 from pathlib import Path
 from typing import Mapping, Sequence
 
 PROCESS_TREE_GRACE_SECONDS = 2.0
+
+
+class _ProcessSignalGuard:
+    """Temporarily make external termination signals clean the active child tree first."""
+
+    def __init__(self, proc: subprocess.Popen[str]):
+        self.proc = proc
+        self.previous: dict[int, object] = {}
+        self.enabled = os.name == "posix" and threading.current_thread() is threading.main_thread()
+
+    def __enter__(self):
+        if not self.enabled:
+            return self
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            previous = signal.getsignal(signum)
+            self.previous[signum] = previous
+
+            def handler(received, frame, *, _previous=previous):
+                terminate_process_tree(self.proc)
+                if _previous == signal.SIG_IGN:
+                    return
+                if callable(_previous):
+                    _previous(received, frame)
+                    return
+                signal.signal(received, signal.SIG_DFL)
+                signal.raise_signal(received)
+
+            signal.signal(signum, handler)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.enabled:
+            for signum, previous in self.previous.items():
+                signal.signal(signum, previous)
+        return False
 
 
 def terminate_process_tree(proc: subprocess.Popen[str], *, grace_seconds: float = PROCESS_TREE_GRACE_SECONDS) -> None:
@@ -87,7 +123,8 @@ def run_captured_split(
 
     proc = subprocess.Popen(list(command), **popen_kwargs)
     try:
-        stdout, stderr = proc.communicate(timeout=timeout)
+        with _ProcessSignalGuard(proc):
+            stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         partial_out = exc.output or ""
         partial_err = exc.stderr or ""
@@ -140,7 +177,8 @@ def run_captured(
 
     proc = subprocess.Popen(list(command), **popen_kwargs)
     try:
-        output, _ = proc.communicate(timeout=timeout)
+        with _ProcessSignalGuard(proc):
+            output, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         partial = exc.output or ""
         if isinstance(partial, bytes):
