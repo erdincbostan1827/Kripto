@@ -10,6 +10,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scripts.bounded_subprocess import run_captured_split
 
 try:
     from scripts.operation_lock import operation_lock
@@ -251,7 +252,7 @@ def _run_argv(command: list[str], *, cwd: Path, timeout_seconds: int) -> subproc
         raise RuntimeError("DATABASE_MIGRATION_COMMAND_INVALID")
     if not 1 <= timeout_seconds <= 1800:
         raise RuntimeError("DATABASE_MIGRATION_TIMEOUT_INVALID")
-    return subprocess.run(command, cwd=cwd, shell=False, text=True, capture_output=True, timeout=timeout_seconds, check=False)
+    return run_captured_split(command, cwd=cwd, timeout=timeout_seconds)
 
 
 def probe_database_head(command: list[str], *, cwd: Path, timeout_seconds: int = 60) -> str:

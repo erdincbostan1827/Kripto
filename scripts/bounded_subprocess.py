@@ -11,9 +11,13 @@ PROCESS_TREE_GRACE_SECONDS = 2.0
 
 
 def terminate_process_tree(proc: subprocess.Popen[str], *, grace_seconds: float = PROCESS_TREE_GRACE_SECONDS) -> None:
-    """Best-effort, fail-closed termination of a subprocess and its descendants."""
-    if proc.poll() is not None:
-        return
+    """Best-effort, fail-closed termination of a subprocess and its descendants.
+
+    On POSIX, the process-group id remains equal to the original leader pid even
+    after the leader exits. Do not return early merely because proc.poll() is
+    non-None: descendants may still be alive and holding inherited pipes open.
+    """
+    leader_exited = proc.poll() is not None
     try:
         if os.name == "posix":
             os.killpg(proc.pid, signal.SIGTERM)
@@ -26,25 +30,92 @@ def terminate_process_tree(proc: subprocess.Popen[str], *, grace_seconds: float 
                 check=False,
             )
         else:
-            proc.terminate()
+            if not leader_exited:
+                proc.terminate()
     except (ProcessLookupError, OSError, subprocess.SubprocessError):
-        try:
-            proc.terminate()
-        except (ProcessLookupError, OSError):
-            pass
+        if not leader_exited:
+            try:
+                proc.terminate()
+            except (ProcessLookupError, OSError):
+                pass
 
     deadline = time.monotonic() + max(0.0, grace_seconds)
-    while proc.poll() is None and time.monotonic() < deadline:
-        time.sleep(0.05)
-    if proc.poll() is not None:
-        return
+    if os.name == "posix":
+        # The leader may already have exited while descendants remain. Probe the
+        # process group itself rather than using proc.poll() as the liveness test.
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                break
+            time.sleep(0.05)
+    else:
+        while proc.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if proc.poll() is not None:
+            return
     try:
         if os.name == "posix":
             os.killpg(proc.pid, signal.SIGKILL)
-        else:
+        elif not leader_exited:
             proc.kill()
     except (ProcessLookupError, OSError):
         pass
+
+
+def run_captured_split(
+    command: Sequence[str],
+    *,
+    cwd: Path | str,
+    timeout: float,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run with separate stdout/stderr while enforcing process-tree cleanup."""
+    popen_kwargs: dict = {
+        "cwd": cwd,
+        "env": env,
+        "text": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+    elif os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+    proc = subprocess.Popen(list(command), **popen_kwargs)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        partial_out = exc.output or ""
+        partial_err = exc.stderr or ""
+        if isinstance(partial_out, bytes):
+            partial_out = partial_out.decode(errors="replace")
+        if isinstance(partial_err, bytes):
+            partial_err = partial_err.decode(errors="replace")
+        terminate_process_tree(proc)
+        try:
+            final_out, final_err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            terminate_process_tree(proc, grace_seconds=0.0)
+            final_out, final_err = proc.communicate(timeout=5)
+        raise subprocess.TimeoutExpired(
+            list(command), timeout, output=final_out or partial_out, stderr=final_err or partial_err
+        ) from None
+    except BaseException:
+        terminate_process_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            terminate_process_tree(proc, grace_seconds=0.0)
+        raise
+
+    # A child can exit while a descendant in the same process group keeps an
+    # inherited pipe open. communicate() would only return once those handles
+    # close, so successful return here means the captured pipes are drained.
+    return subprocess.CompletedProcess(list(command), proc.returncode, stdout or "", stderr or "")
 
 
 def run_captured(

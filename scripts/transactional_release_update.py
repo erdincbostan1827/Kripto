@@ -10,6 +10,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from scripts.bounded_subprocess import run_captured_split
 
 try:
     from scripts.operation_lock import operation_lock
@@ -128,7 +129,7 @@ def run_post_cutover_acceptance(root: Path, *, command: list[str] | None = None,
     if timeout_seconds < 1 or timeout_seconds > 900:
         raise RuntimeError("UPDATE_ACCEPTANCE_TIMEOUT_INVALID")
     try:
-        proc = subprocess.run(command, cwd=root, shell=False, text=True, capture_output=True, timeout=timeout_seconds, check=False)
+        proc = run_captured_split(command, cwd=root, timeout=timeout_seconds)
         cmd_result = {
             "executed": True, "returncode": proc.returncode,
             "stdout_tail": proc.stdout[-4000:], "stderr_tail": proc.stderr[-4000:],
