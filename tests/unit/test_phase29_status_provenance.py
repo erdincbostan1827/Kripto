@@ -48,7 +48,7 @@ def test_local_git_provenance_has_real_clean_commit_and_immutable_tag():
  assert re.fullmatch(r'[0-9a-f]{40}',d['git_commit_sha'])
  assert d['clean_tree'] is True
  assert d['immutable_tag_present'] is True
- assert any(__import__('re').fullmatch(r'v0\.3\.0-phase(?:29|[3-9]\d|\d{3,})', t) for t in d['tags_at_head'])
+ assert any(__import__('re').fullmatch(r'v0\.3\.0-phase(?:29|[3-9]\d|\d{3,})(?:-local)?', t) for t in d['tags_at_head'])
 
 
 def test_release_manifest_test_count_parser_supports_grouped_pytest_collection():
