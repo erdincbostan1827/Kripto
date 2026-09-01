@@ -16,7 +16,7 @@ from pathlib import Path
 _IMPORT_ROOT = Path(__file__).resolve().parents[2]
 if str(_IMPORT_ROOT) not in sys.path:
     sys.path.insert(0, str(_IMPORT_ROOT))
-from scripts.bounded_subprocess import run_captured
+from scripts.bounded_subprocess import run_captured, start_process_group, terminate_process_tree
 
 ROOT = _IMPORT_ROOT
 FRONTEND = ROOT / "frontend"
@@ -97,7 +97,7 @@ def run(*, timeout: int = 300, confirm_real: bool = False) -> dict:
     browser_rows: list[dict] = []
     if not blockers and chromium:
         port = _free_port()
-        server = subprocess.Popen([sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"], cwd=dist, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        server = start_process_group([sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"], cwd=dist, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             time.sleep(0.5)
             for w,h in VIEWPORTS:
@@ -121,9 +121,11 @@ def run(*, timeout: int = 300, confirm_real: bool = False) -> dict:
                     blockers.append(f"CHROMIUM_VIEWPORT_FAILED:{w}x{h}")
                 browser_rows.append(row)
         finally:
-            server.terminate()
-            try: server.wait(timeout=5)
-            except subprocess.TimeoutExpired: server.kill()
+            terminate_process_tree(server)
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                terminate_process_tree(server, grace_seconds=0.0)
     evidence["chromium_viewports"] = browser_rows
 
     payload = {

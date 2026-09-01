@@ -101,6 +101,36 @@ def terminate_process_tree(proc: subprocess.Popen[str], *, grace_seconds: float 
         pass
 
 
+
+def start_process_group(
+    command: Sequence[str],
+    *,
+    cwd: Path | str | None = None,
+    env: Mapping[str, str] | None = None,
+    stdout=None,
+    stderr=None,
+    text: bool = False,
+) -> subprocess.Popen:
+    """Start a command in an isolated process group for explicit lifecycle control."""
+    popen_kwargs: dict = {
+        "cwd": cwd,
+        "env": env,
+        "stdout": stdout,
+        "stderr": stderr,
+        "text": text,
+        "shell": False,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+    elif os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    return subprocess.Popen(list(command), **popen_kwargs)
+
+
+def guard_process_signals(proc: subprocess.Popen):
+    """Public signal-guard adapter for long-lived process-group lifecycles."""
+    return _ProcessSignalGuard(proc)
+
 def run_captured_split(
     command: Sequence[str],
     *,

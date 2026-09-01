@@ -1,10 +1,18 @@
 from __future__ import annotations
-import argparse, json, os, subprocess, time
+import argparse, json, os, sys, time
 from pathlib import Path
+
+_IMPORT_ROOT = Path(__file__).resolve().parents[1]
+if str(_IMPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_IMPORT_ROOT))
+
 try:
     from scripts.operation_lock import operation_lock
+    from scripts.bounded_subprocess import guard_process_signals, start_process_group, terminate_process_tree
 except ModuleNotFoundError:
     from operation_lock import operation_lock
+    from bounded_subprocess import guard_process_signals, start_process_group, terminate_process_tree
+
 
 def main()->int:
     p=argparse.ArgumentParser(description='Execute one command while holding the platform deployment operation lock.')
@@ -19,22 +27,21 @@ def main()->int:
         if not isinstance(extra,dict) or any(not isinstance(k,str) or not isinstance(v,str) for k,v in extra.items()): raise SystemExit('OPERATION_LOCK_EXEC_ENV_INVALID')
         env.update(extra)
     with operation_lock(a.lock_dir, operation=a.operation) as held:
-        proc=subprocess.Popen(cmd,shell=False,env=env)
+        proc=start_process_group(cmd, env=env)
         try:
-            while proc.poll() is None:
-                time.sleep(a.heartbeat_check_seconds)
-                try:
+            with guard_process_signals(proc):
+                while proc.poll() is None:
+                    time.sleep(a.heartbeat_check_seconds)
                     held['assert_healthy']()
-                except BaseException:
-                    proc.terminate()
-                    try: proc.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        proc.kill(); proc.wait(timeout=5)
-                    raise
-            held['assert_healthy']()
-            return int(proc.returncode)
+                # A leader may exit while descendants in its process group remain
+                # active. Quiesce the entire tree before releasing the platform
+                # operation lock so no deployment work can outlive the mutex.
+                terminate_process_tree(proc)
+                held['assert_healthy']()
+                return int(proc.returncode)
         except BaseException:
-            if proc.poll() is None:
-                proc.kill(); proc.wait(timeout=5)
+            # Always target the process group, even when the direct leader has
+            # already exited; descendants may still be alive.
+            terminate_process_tree(proc)
             raise
 if __name__=='__main__': raise SystemExit(main())
