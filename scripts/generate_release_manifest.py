@@ -21,6 +21,11 @@ except ModuleNotFoundError:  # direct script execution
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from scripts.bounded_subprocess import run_captured_bytes
+except ModuleNotFoundError:  # direct script execution
+    from bounded_subprocess import run_captured_bytes
+
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = "0.3.0-local-acceptance"
 SOURCE_ROOTS = [
@@ -101,7 +106,11 @@ def source_tree_hash() -> str:
 
 def git_sha() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
+        proc = run_captured_bytes(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=10)
+        if proc.returncode != 0:
+            return "UNAVAILABLE"
+        value = proc.stdout.decode("ascii", errors="ignore").strip()
+        return value if len(value) == 40 else "UNAVAILABLE"
     except Exception:
         return "UNAVAILABLE"
 
@@ -112,14 +121,18 @@ def git_tracked_file_state(path: Path) -> dict:
     rel = str(path.relative_to(ROOT)).replace("\\", "/")
     exists = path.is_file()
     try:
-        tracked = subprocess.run(["git", "ls-files", "--error-unmatch", "--", rel], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        tracked_probe = run_captured_bytes(["git", "ls-files", "--error-unmatch", "--", rel], cwd=ROOT, timeout=10)
+        tracked = tracked_probe.returncode == 0
     except Exception:
         tracked = False
     matches_head = False
     head_sha256 = None
     if tracked:
         try:
-            head_bytes = subprocess.check_output(["git", "show", f"HEAD:{rel}"], cwd=ROOT, stderr=subprocess.DEVNULL)
+            head_probe = run_captured_bytes(["git", "show", f"HEAD:{rel}"], cwd=ROOT, timeout=10)
+            if head_probe.returncode != 0:
+                raise RuntimeError("GIT_SHOW_FAILED")
+            head_bytes = head_probe.stdout
             head_sha256 = hashlib.sha256(head_bytes).hexdigest()
             matches_head = exists and sha256_file(path) == head_sha256
         except Exception:
@@ -194,7 +207,11 @@ def coverage_truth() -> dict:
 
 def migration_head() -> str:
     try:
-        return subprocess.check_output(["alembic", "heads"], cwd=ROOT, text=True).split()[0]
+        proc = run_captured_bytes(["alembic", "heads"], cwd=ROOT, timeout=20)
+        if proc.returncode != 0:
+            return "UNKNOWN"
+        parts = proc.stdout.decode("utf-8", errors="replace").split()
+        return parts[0] if parts else "UNKNOWN"
     except Exception:
         return "UNKNOWN"
 

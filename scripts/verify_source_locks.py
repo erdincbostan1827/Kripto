@@ -5,6 +5,11 @@ import subprocess
 from pathlib import Path
 
 try:
+    from scripts.bounded_subprocess import run_captured_bytes
+except ModuleNotFoundError:
+    from bounded_subprocess import run_captured_bytes
+
+try:
     from scripts.verify_source_package_identity import verify_source_package_identity
 except ModuleNotFoundError:
     from verify_source_package_identity import verify_source_package_identity
@@ -18,20 +23,14 @@ def _sha256(data: bytes) -> str:
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    return run_captured_bytes(["git", *args], cwd=root, timeout=10)
 
 
 def _repository_identity(root: Path) -> tuple[bool, str | None, str | None]:
     """Return repository availability, HEAD SHA and a fail-closed diagnostic."""
     try:
         inside = _git(root, "rev-parse", "--is-inside-work-tree")
-    except (FileNotFoundError, OSError) as exc:
+    except (FileNotFoundError, OSError, subprocess.SubprocessError) as exc:
         return False, None, f"GIT_UNAVAILABLE:{type(exc).__name__}"
     if inside.returncode != 0 or inside.stdout.strip() != b"true":
         return False, None, "GIT_REPOSITORY_UNAVAILABLE"

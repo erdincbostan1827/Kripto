@@ -12,7 +12,7 @@ from pathlib import Path
 _IMPORT_ROOT = Path(__file__).resolve().parents[1]
 if str(_IMPORT_ROOT) not in sys.path:
     sys.path.insert(0, str(_IMPORT_ROOT))
-from scripts.bounded_subprocess import run_captured
+from scripts.bounded_subprocess import run_captured, run_captured_bytes
 
 ROOT = _IMPORT_ROOT
 OUT_JSON = ROOT / "reports" / "TEST_INVENTORY.json"
@@ -27,7 +27,10 @@ def _sha(path: Path) -> str:
 
 def _git_sha(root: Path = ROOT) -> str | None:
     try:
-        value = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL, timeout=10).strip().lower()
+        proc = run_captured_bytes(["git", "rev-parse", "HEAD"], cwd=root, timeout=10)
+        if proc.returncode != 0:
+            return None
+        value = proc.stdout.decode("ascii", errors="ignore").strip().lower()
         return value if len(value) == 40 else None
     except Exception:
         return None

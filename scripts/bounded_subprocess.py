@@ -131,6 +131,62 @@ def guard_process_signals(proc: subprocess.Popen):
     """Public signal-guard adapter for long-lived process-group lifecycles."""
     return _ProcessSignalGuard(proc)
 
+def run_captured_bytes(
+    command: Sequence[str],
+    *,
+    cwd: Path | str,
+    timeout: float,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run with binary stdout/stderr capture and fail-closed process-tree cleanup.
+
+    Release/source identity probes sometimes need byte-exact Git object contents.
+    Keep those bytes intact while applying the same timeout/cancellation lifecycle
+    guarantees as the text runners.
+    """
+    popen_kwargs: dict = {
+        "cwd": cwd,
+        "env": env,
+        "text": False,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+    }
+    if os.name == "posix":
+        popen_kwargs["start_new_session"] = True
+    elif os.name == "nt":
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+
+    proc = subprocess.Popen(list(command), **popen_kwargs)
+    try:
+        with _ProcessSignalGuard(proc):
+            stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        partial_out = exc.output or b""
+        partial_err = exc.stderr or b""
+        if isinstance(partial_out, str):
+            partial_out = partial_out.encode(errors="replace")
+        if isinstance(partial_err, str):
+            partial_err = partial_err.encode(errors="replace")
+        terminate_process_tree(proc)
+        try:
+            final_out, final_err = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            terminate_process_tree(proc, grace_seconds=0.0)
+            final_out, final_err = proc.communicate(timeout=5)
+        raise subprocess.TimeoutExpired(
+            list(command), timeout, output=final_out or partial_out, stderr=final_err or partial_err
+        ) from None
+    except BaseException:
+        terminate_process_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            terminate_process_tree(proc, grace_seconds=0.0)
+        raise
+
+    return subprocess.CompletedProcess(list(command), proc.returncode, stdout or b"", stderr or b"")
+
+
 def run_captured_split(
     command: Sequence[str],
     *,
