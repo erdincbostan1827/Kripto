@@ -89,7 +89,7 @@ def test_coverage_runner_cleans_stale_parallel_data(monkeypatch, tmp_path: Path)
         data=runner.REPORTS/'.coverage.00_of_01.localhost.pid.new'
         data.write_bytes(b'fresh')
         return Proc()
-    monkeypatch.setattr(runner.subprocess,'run',fake_run)
+    monkeypatch.setattr(runner,'run_captured',fake_run)
     payload=runner.run_shard(0,1,10)
     assert payload['status']=='PASS'
     assert not stale.exists()

@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.local_acceptance_runner import discover, select_shard
+from scripts.bounded_subprocess import run_captured
 
 REPORTS = ROOT / "reports" / "local_coverage"
 
@@ -42,10 +43,7 @@ def _per_file_fallback(selected: list[str], data: Path, timeout: int) -> tuple[i
         ]
         chunks.append(f"\n=== {test_file} ===\n")
         try:
-            proc = subprocess.run(
-                command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                timeout=per_file_timeout, check=False,
-            )
+            proc = run_captured(command, cwd=ROOT, timeout=per_file_timeout)
         except subprocess.TimeoutExpired as exc:
             output = exc.stdout or ""
             if isinstance(output, bytes):
@@ -75,8 +73,7 @@ def run_shard(index: int, count: int, timeout: int) -> dict:
     ]
     observed = datetime.now(timezone.utc).isoformat()
     try:
-        proc = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              timeout=timeout, check=False)
+        proc = run_captured(command, cwd=ROOT, timeout=timeout)
         output = proc.stdout or ""
         exit_code = proc.returncode
         data_candidates = sorted(REPORTS.glob(data.name + ".*"))

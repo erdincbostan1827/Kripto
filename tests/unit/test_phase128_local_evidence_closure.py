@@ -56,7 +56,7 @@ def test_phase129_coverage_runner_fallback_requires_each_file_and_real_coverage_
         data.write_bytes(data.read_bytes() + b"x" if data.exists() else b"x")
         return Proc()
 
-    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "run_captured", fake_run)
     payload = runner.run_shard(0, 1, 10)
     assert payload["status"] == "PASS"
     assert payload["execution_mode"] == "PER_FILE_TIMEOUT_FALLBACK"
