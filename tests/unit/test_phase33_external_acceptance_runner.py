@@ -19,7 +19,7 @@ def test_simulation_never_promotes_to_external_pass(tmp_path, monkeypatch):
     class P:
         returncode = 0
         stdout = "ok\n"
-    monkeypatch.setattr(runner.subprocess, "run", lambda *a, **k: P())
+    monkeypatch.setattr(runner, "run_captured", lambda *a, **k: P())
     ev = runner._run("sim", ["fake", "arg"], real_system=False)
     assert ev.status == "BLOCKED"
     assert ev.blocker == "SIMULATED_NOT_EXTERNAL_ACCEPTANCE"

@@ -68,7 +68,7 @@ def test_orchestrator_selected_profiles_only(monkeypatch, tmp_path: Path) -> Non
     monkeypatch.setattr(orchestrator, "execute", lambda profile, **kwargs: calls.append(profile) or {"selected_all_pass": False, "groups": {}})
     monkeypatch.setattr(orchestrator, "merge", lambda **kwargs: {"selected_all_pass": False})
     monkeypatch.setattr(orchestrator, "verify_manifest", lambda *a, **k: {"verified": False, "selected_all_pass": False})
-    monkeypatch.setattr(orchestrator, "_run_cli", lambda command: {"command": command, "exit_code": 2, "output": "blocked"})
+    monkeypatch.setattr(orchestrator, "_run_cli", lambda command, **kwargs: {"command": command, "exit_code": 2, "output": "blocked"})
     result = orchestrator.orchestrate(confirm_real=True, profiles=("runtime", "testnet"))
     assert calls == ["runtime", "testnet"]
     assert result["selected_profiles"] == ["runtime", "testnet"]

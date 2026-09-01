@@ -51,8 +51,8 @@ def test_phase176_external_runner_redacts_logs_and_classifies_nonzero(monkeypatc
     monkeypatch.setattr(runner, "ROOT", tmp_path)
     monkeypatch.setattr(runner.shutil, "which", lambda _: "/usr/bin/fake")
     monkeypatch.setattr(
-        runner.subprocess,
-        "run",
+        runner,
+        "run_captured",
         lambda *a, **k: subprocess.CompletedProcess(a[0], 1, f"Could not resolve host registry; token={secret}\n"),
     )
     ev = runner._run("diagnostic", ["fake", "arg"], real_system=True, run_dir=tmp_path)

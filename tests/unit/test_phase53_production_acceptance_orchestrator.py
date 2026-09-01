@@ -33,7 +33,7 @@ def test_orchestrator_never_promotes_when_release_gate_blocks(tmp_path, monkeypa
         {"command": [], "exit_code": 1, "output": "gate blocked"},
         {"command": [], "exit_code": 0, "output": "dossier"},
     ])
-    monkeypatch.setattr(orch, "_run_cli", lambda cmd: next(calls))
+    monkeypatch.setattr(orch, "_run_cli", lambda cmd, **kwargs: next(calls))
     result = orch.orchestrate(confirm_real=True, timeout=1)
     assert result["production_ready"] is False
     assert result["release_gate"]["exit_code"] == 1

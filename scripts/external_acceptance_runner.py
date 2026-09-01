@@ -24,6 +24,7 @@ from backend.app.release.acceptance_challenge import verify_challenge
 from backend.app.release.acceptance_contract import RUNNER_GROUP_KEYS, build_plan, command_contract, command_contract_sha256
 from backend.app.release.evidence_ledger import append_entry
 from scripts.acceptance_diagnostics import classify_blocker, redact_text
+from scripts.bounded_subprocess import run_captured
 
 
 @dataclass(frozen=True)
@@ -59,8 +60,7 @@ def _run(key: str, command: list[str], *, real_system: bool, run_dir: Path | Non
         return Evidence(key, "BLOCKED", real_system, tuple(command), None,
                         f"TOOL_UNAVAILABLE:{tool}", str(log.relative_to(ROOT)), _sha(log), observed)
     try:
-        proc = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        proc = run_captured(command, cwd=ROOT, timeout=timeout)
         safe_output = redact_text(proc.stdout or "")
         _write(log, safe_output)
         if proc.returncode != 0:

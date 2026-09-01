@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from backend.app.release.acceptance_challenge import create_challenge, verify_challenge
 from scripts.external_acceptance_runner import execute
+from scripts.bounded_subprocess import run_captured
 from scripts.merge_external_acceptance import merge
 from scripts.verify_external_acceptance import verify_manifest
 from scripts.production_acceptance_handoff import build_handoff
@@ -25,9 +26,20 @@ PROFILES = (
 )
 
 
-def _run_cli(command: list[str]) -> dict[str, Any]:
-    proc = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-    return {"command": command, "exit_code": proc.returncode, "output": proc.stdout[-12000:]}
+def _run_cli(command: list[str], *, timeout: int = 300) -> dict[str, Any]:
+    try:
+        proc = run_captured(command, cwd=ROOT, timeout=timeout)
+        return {"command": command, "exit_code": proc.returncode, "output": (proc.stdout or "")[-12000:]}
+    except subprocess.TimeoutExpired as exc:
+        output = exc.output or ""
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+        return {
+            "command": command,
+            "exit_code": None,
+            "output": output[-12000:],
+            "blocker": "COMMAND_OR_NETWORK_TIMEOUT",
+        }
 
 
 def _handoff_metadata(root: Path) -> dict[str, Any]:
@@ -136,7 +148,7 @@ def orchestrate(*, confirm_real: bool, timeout: int = 300, profiles: tuple[str, 
     ledger_checkpoint = {"executed": False, "exit_code": None, "blocker": "MERGED_ACCEPTANCE_NOT_ALL_PASS"}
     if merged.get("selected_all_pass") is True:
         if os.getenv("LEDGER_CHECKPOINT_SIGN_COMMAND") and os.getenv("ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND"):
-            ledger_checkpoint = _run_cli(["bash", "scripts/external/ledger_checkpoint_sign_verify.sh"])
+            ledger_checkpoint = _run_cli(["bash", "scripts/external/ledger_checkpoint_sign_verify.sh"], timeout=timeout)
         else:
             ledger_checkpoint = {
                 "executed": False,
@@ -144,9 +156,9 @@ def orchestrate(*, confirm_real: bool, timeout: int = 300, profiles: tuple[str, 
                 "blocker": "LEDGER_CHECKPOINT_SIGNING_OR_VERIFICATION_NOT_CONFIGURED",
             }
     verify = verify_manifest(reports / "manifest_all.json", root=ROOT)
-    release_manifest = _run_cli([sys.executable, "scripts/generate_release_manifest.py"])
-    release_gate = _run_cli([sys.executable, "scripts/release_gate.py"])
-    dossier = _run_cli([sys.executable, "scripts/production_readiness_dossier.py"])
+    release_manifest = _run_cli([sys.executable, "scripts/generate_release_manifest.py"], timeout=timeout)
+    release_gate = _run_cli([sys.executable, "scripts/release_gate.py"], timeout=timeout)
+    dossier = _run_cli([sys.executable, "scripts/production_readiness_dossier.py"], timeout=timeout)
     production_ready = bool(
         merged.get("selected_all_pass")
         and verify.get("verified")
