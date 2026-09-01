@@ -151,6 +151,18 @@ def _run(cmd: list[str], cwd: Path, *, offline: bool) -> dict:
             "output": safe_output,
             "process_tree_terminated": proc.poll() is not None,
         }
+    except BaseException:
+        # User/runner cancellation must not leave npm/uv resolver children behind.
+        # Preserve cancellation semantics after fail-closed process-tree cleanup.
+        _terminate_process_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            try:
+                proc.kill()
+            except (ProcessLookupError, OSError):
+                pass
+        raise
 
     output = output or ""
     return {
