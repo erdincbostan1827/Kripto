@@ -50,7 +50,7 @@ def _free_port() -> int:
 
 def _git_sha() -> str | None:
     try:
-        p = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10, check=False)
+        p = run_captured(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=10)
         value = (p.stdout or "").strip().lower()
         return value if p.returncode == 0 and len(value) == 40 else None
     except Exception:

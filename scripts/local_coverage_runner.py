@@ -83,12 +83,21 @@ def run_shard(index: int, count: int, timeout: int) -> dict:
             else:
                 env = dict(__import__('os').environ)
                 env['COVERAGE_FILE'] = str(data)
-                combined = subprocess.run(
-                    ["python", "-m", "coverage", "combine", *map(str, data_candidates)],
-                    cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,
-                )
-                if combined.returncode != 0:
-                    output += "\nCOVERAGE_COMBINE_FAILED\n" + (combined.stdout or "")
+                try:
+                    combined = run_captured(
+                        ["python", "-m", "coverage", "combine", *map(str, data_candidates)],
+                        cwd=ROOT,
+                        env=env,
+                        timeout=max(30, min(timeout, 180)),
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    timed_out = exc.stdout or ""
+                    if isinstance(timed_out, bytes):
+                        timed_out = timed_out.decode(errors="replace")
+                    output += "\nCOVERAGE_COMBINE_TIMEOUT\n" + timed_out
+                else:
+                    if combined.returncode != 0:
+                        output += "\nCOVERAGE_COMBINE_FAILED\n" + (combined.stdout or "")
         status = "PASS" if exit_code == 0 and data.is_file() and data.stat().st_size > 0 else "FAIL"
         blocker = None if status == "PASS" else (f"EXIT_CODE:{exit_code}" if exit_code else "COVERAGE_DATA_MISSING")
     except subprocess.TimeoutExpired as exc:

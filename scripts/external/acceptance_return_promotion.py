@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.external.acceptance_return_bundle import MANIFEST, _git_sha, _safe_rel, _secret_hits
+from scripts.bounded_subprocess import run_captured_split
 
 ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_PREFIX = "reports/external_acceptance/"
@@ -23,6 +24,8 @@ IMPORT_LEDGER_CLASSIFICATION = "EXTERNAL_ACCEPTANCE_IMPORT_REPLAY_LEDGER"
 TRANSACTION_JOURNAL = Path("reports/acceptance_import/TRANSACTION_JOURNAL.json")
 TRANSACTION_JOURNAL_CLASSIFICATION = "EXTERNAL_ACCEPTANCE_IMPORT_CRASH_RECOVERY_JOURNAL"
 ZERO_HASH = "0" * 64
+GIT_WORKTREE_TIMEOUT_SECONDS = 30.0
+GIT_WORKTREE_CLEANUP_TIMEOUT_SECONDS = 15.0
 
 
 def _sha(path: Path) -> str:
@@ -283,15 +286,44 @@ def _post_promotion_verify(root: Path, *, max_age_hours: int) -> dict[str, Any]:
 def _candidate_worktree(root: Path) -> tuple[Path, Path]:
     parent = Path(tempfile.mkdtemp(prefix="acceptance-promotion-assess-"))
     worktree = parent / "repo"
-    subprocess.run(["git", "worktree", "add", "--detach", "-q", str(worktree), "HEAD"], cwd=root, check=True,
-                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        proc = run_captured_split(
+            ["git", "worktree", "add", "--detach", "-q", str(worktree), "HEAD"],
+            cwd=root,
+            timeout=GIT_WORKTREE_TIMEOUT_SECONDS,
+        )
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(
+                proc.returncode,
+                proc.args,
+                output=proc.stdout,
+                stderr=proc.stderr,
+            )
+    except BaseException:
+        shutil.rmtree(parent, ignore_errors=True)
+        raise
     return parent, worktree
 
 
 def _cleanup_worktree(root: Path, parent: Path, worktree: Path) -> None:
     try:
-        subprocess.run(["git", "worktree", "remove", "--force", str(worktree)], cwd=root, check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            run_captured_split(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=root,
+                timeout=GIT_WORKTREE_CLEANUP_TIMEOUT_SECONDS,
+            )
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+            # The physical candidate tree is removed in finally. Prune stale Git
+            # worktree administration metadata without allowing cleanup to hang.
+            try:
+                run_captured_split(
+                    ["git", "worktree", "prune", "--expire", "now"],
+                    cwd=root,
+                    timeout=GIT_WORKTREE_CLEANUP_TIMEOUT_SECONDS,
+                )
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+                pass
     finally:
         shutil.rmtree(parent, ignore_errors=True)
 

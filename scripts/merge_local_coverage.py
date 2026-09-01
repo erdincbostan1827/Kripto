@@ -14,10 +14,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.local_acceptance_runner import discover
+from scripts.bounded_subprocess import run_captured
 
 REPORTS = ROOT / "reports" / "local_coverage"
 OUT = REPORTS / "full_coverage_manifest.json"
 COVERAGE_JSON = REPORTS / "coverage.json"
+COVERAGE_TOOL_TIMEOUT_SECONDS = 180
 
 
 def _sha(path: Path) -> str:
@@ -76,22 +78,38 @@ def merge(shard_count: int) -> dict:
         combined.unlink(missing_ok=True)
         env = dict(os.environ)
         env["COVERAGE_FILE"] = str(combined)
-        proc = subprocess.run(["python", "-m", "coverage", "combine", "--keep", *map(str, data_files)], cwd=ROOT, env=env,
-                              text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-        if proc.returncode != 0 or not combined.is_file():
-            problems.append("COVERAGE_COMBINE_FAILED")
+        try:
+            proc = run_captured(
+                ["python", "-m", "coverage", "combine", "--keep", *map(str, data_files)],
+                cwd=ROOT,
+                env=env,
+                timeout=COVERAGE_TOOL_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            problems.append("COVERAGE_COMBINE_TIMEOUT")
         else:
-            rep = subprocess.run(["python", "-m", "coverage", "json", "-o", str(COVERAGE_JSON)], cwd=ROOT, env=env,
-                                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
-            if rep.returncode != 0 or not COVERAGE_JSON.is_file():
-                problems.append("COVERAGE_JSON_FAILED")
+            if proc.returncode != 0 or not combined.is_file():
+                problems.append("COVERAGE_COMBINE_FAILED")
             else:
                 try:
-                    data = json.loads(COVERAGE_JSON.read_text(encoding="utf-8"))
-                    percent = float(data["totals"]["percent_covered"])
-                    json_sha = _sha(COVERAGE_JSON)
-                except Exception:
-                    problems.append("COVERAGE_JSON_INVALID")
+                    rep = run_captured(
+                        ["python", "-m", "coverage", "json", "-o", str(COVERAGE_JSON)],
+                        cwd=ROOT,
+                        env=env,
+                        timeout=COVERAGE_TOOL_TIMEOUT_SECONDS,
+                    )
+                except subprocess.TimeoutExpired:
+                    problems.append("COVERAGE_JSON_TIMEOUT")
+                else:
+                    if rep.returncode != 0 or not COVERAGE_JSON.is_file():
+                        problems.append("COVERAGE_JSON_FAILED")
+                    else:
+                        try:
+                            data = json.loads(COVERAGE_JSON.read_text(encoding="utf-8"))
+                            percent = float(data["totals"]["percent_covered"])
+                            json_sha = _sha(COVERAGE_JSON)
+                        except Exception:
+                            problems.append("COVERAGE_JSON_INVALID")
     payload = {
         "schema_version": "1.0",
         "classification": "LOCAL_FULL_COVERAGE_EVIDENCE",

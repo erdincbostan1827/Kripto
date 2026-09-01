@@ -16,6 +16,7 @@ from scripts.external.execution_map import build as build_execution_map
 from scripts.external.frontend_browser_acceptance import run as run_frontend_browser
 from scripts.external.tauri_build_readiness import evaluate as evaluate_tauri_build
 from scripts.production_acceptance_orchestrator import orchestrate
+from scripts.bounded_subprocess import run_captured
 
 OUT = ROOT / "reports" / "EXTERNAL_REQUIREMENTS_MASTER_EXECUTION.json"
 
@@ -32,7 +33,7 @@ def _write(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _current_git_sha() -> str | None:
     try:
-        p = subprocess.run(['git','rev-parse','HEAD'], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10, check=False)
+        p = run_captured(['git','rev-parse','HEAD'], cwd=ROOT, timeout=10)
         value = (p.stdout or '').strip().lower()
         return value if p.returncode == 0 and len(value) == 40 else None
     except Exception:
