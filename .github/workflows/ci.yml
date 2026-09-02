@@ -12,27 +12,49 @@ jobs:
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with: {python-version: '3.12'}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e '.[test]' ruff mypy pip-audit
-      - run: python -m compileall -q backend scripts tests
-      - name: Ruff lint
+      - run: python -m pip install -e '.[test]' 'ruff==0.12.11' 'mypy==1.17.1' pip-audit
+      - name: Compile
         run: |
           mkdir -p reports
           set -o pipefail
-          ruff check backend tests scripts 2>&1 | tee reports/RUFF_CHECK.txt
-      - name: Upload Ruff diagnostics
+          python -m compileall -q backend scripts tests 2>&1 | tee reports/COMPILEALL.txt
+      - name: Ruff lint
+        run: |
+          set -o pipefail
+          ruff check --target-version py312 --select E4,E7,E9,F backend tests scripts 2>&1 | tee reports/RUFF_CHECK.txt
+      - name: Mypy
+        run: |
+          set -o pipefail
+          mypy backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
+      - name: Pytest
+        run: |
+          set -o pipefail
+          pytest -q -W error --junitxml=reports/pytest.xml 2>&1 | tee reports/PYTEST.txt
+      - name: Prohibited marker scan
+        run: |
+          set -o pipefail
+          python scripts/prohibited_scan.py 2>&1 | tee reports/PROHIBITED_SCAN_CI.txt
+      - name: Secret scan
+        run: |
+          set -o pipefail
+          python scripts/secret_scan.py 2>&1 | tee reports/SECRET_SCAN_CI.txt
+      - name: Local SAST
+        run: |
+          set -o pipefail
+          python scripts/local_sast.py 2>&1 | tee reports/LOCAL_SAST_CI.txt
+      - name: Alembic offline SQL
+        run: alembic upgrade head --sql > reports/ALEMBIC_OFFLINE_SQL.txt
+      - name: Dependency audit
+        run: |
+          set -o pipefail
+          pip-audit 2>&1 | tee reports/PIP_AUDIT.txt
+      - name: Upload backend diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ruff-diagnostics-${{ github.run_id }}
-          path: reports/RUFF_CHECK.txt
+          name: backend-diagnostics-${{ github.run_id }}
+          path: reports/
           if-no-files-found: ignore
-      - run: mypy backend/app --ignore-missing-imports
-      - run: pytest -q -W error --junitxml=reports/pytest.xml
-      - run: python scripts/prohibited_scan.py
-      - run: python scripts/secret_scan.py
-      - run: python scripts/local_sast.py
-      - run: alembic upgrade head --sql > reports/ALEMBIC_OFFLINE_SQL.txt
-      - run: pip-audit
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -51,10 +73,28 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Prepare compose environment
-        run: cp .env.example .env
-      - run: docker compose config -q
-      - run: docker compose --profile test build test app frontend
-      - run: docker compose --profile test run --rm test
+        run: |
+          mkdir -p reports
+          cp .env.example .env
+      - name: Validate compose
+        run: |
+          set -o pipefail
+          docker compose config -q 2>&1 | tee reports/DOCKER_COMPOSE_CONFIG.txt
+      - name: Build test images
+        run: |
+          set -o pipefail
+          docker compose --profile test build test app frontend 2>&1 | tee reports/DOCKER_BUILD.txt
+      - name: Run containerized tests
+        run: |
+          set -o pipefail
+          docker compose --profile test run --rm test 2>&1 | tee reports/DOCKER_TEST.txt
+      - name: Upload Docker diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: docker-diagnostics-${{ github.run_id }}
+          path: reports/
+          if-no-files-found: ignore
   release-gate:
     if: github.ref_type == 'tag'
     needs: [backend, frontend, docker]
