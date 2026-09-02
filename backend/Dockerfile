@@ -15,7 +15,7 @@ USER root
 RUN pip install --no-cache-dir '/app[test]'
 COPY tests /app/tests
 USER appuser
-CMD ["python","-m","pytest","-q","-W","error"]
+CMD ["python","-m","pytest","-q","-W","error","-p","no:cacheprovider"]
 
 FROM base AS runtime
 USER appuser
