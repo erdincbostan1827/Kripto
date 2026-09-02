@@ -1,0 +1,20 @@
+name: Phase 220 Main Bootstrap Runner Check
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runner-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm GitHub-hosted runner
+        run: |
+          echo "phase220-main-runner=ok"
+          uname -a
+          git --version
