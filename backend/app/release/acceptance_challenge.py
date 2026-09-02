@@ -9,8 +9,8 @@ import os
 from scripts.bounded_subprocess import run_captured
 from typing import Any
 
-from backend.app.release.acceptance_contract import acceptance_contract_sha256
-from backend.app.release.path_integrity import PathIntegrityError, resolve_without_symlink_components, strict_regular_file
+from app.release.acceptance_contract import acceptance_contract_sha256
+from app.release.path_integrity import PathIntegrityError, resolve_without_symlink_components, strict_regular_file
 
 CURRENT_CHALLENGE_SCHEMA = "2.3"
 GIT_STATUS_UNAVAILABLE_MARKER = "__GIT_STATUS_UNAVAILABLE__"

@@ -9,9 +9,9 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.path_integrity import PathIntegrityError, strict_regular_file
-from backend.app.release.paper_campaign import PaperCampaignEvidence, PaperCampaignPolicy
+from app.release.acceptance_challenge import verify_challenge
+from app.release.path_integrity import PathIntegrityError, strict_regular_file
+from app.release.paper_campaign import PaperCampaignEvidence, PaperCampaignPolicy
 
 CLASSIFICATIONS = {
     "private-stream": "CREDENTIALED_PRIVATE_STREAM_ACCEPTANCE",

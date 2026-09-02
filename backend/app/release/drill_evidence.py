@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, cast
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.path_integrity import PathIntegrityError, strict_regular_file
+from app.release.acceptance_challenge import verify_challenge
+from app.release.path_integrity import PathIntegrityError, strict_regular_file
 
 
 class DrillEvidenceError(ValueError):
