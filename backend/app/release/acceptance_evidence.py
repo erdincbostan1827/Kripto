@@ -16,7 +16,7 @@ class MultiAssetAcceptanceSnapshot:
     memory_soak_ok:bool; representative_liquidity_classes_ok:bool; multi_position_reconciliation_ok:bool; multi_symbol_order_fill_ok:bool; quote_asset_risk_ok:bool
     unresolved_critical_incidents:int; human_approval_ok:bool; evidence:tuple[AcceptanceCaseEvidence,...]
     def blockers(self)->tuple[str,...]:
-        b=[]
+        b: list[str] = []
         checks=(('RESERVED_BALANCE',self.reserved_balance_ok),('DRAWDOWN_ADAPTIVE_ALLOCATION',self.drawdown_adaptive_allocation_ok),('DUPLICATE_PREVENTION',self.same_symbol_duplicate_prevention_ok),('BACKPRESSURE',self.backpressure_under_burst_ok),('MEMORY_SOAK',self.memory_soak_ok),('LIQUIDITY_CLASSES',self.representative_liquidity_classes_ok),('MULTI_POSITION_RECONCILIATION',self.multi_position_reconciliation_ok),('MULTI_SYMBOL_ORDER_FILL',self.multi_symbol_order_fill_ok),('QUOTE_ASSET_RISK',self.quote_asset_risk_ok),('HUMAN_APPROVAL',self.human_approval_ok))
         b.extend(k for k,v in checks if not v)
         if self.unresolved_critical_incidents!=0: b.append('UNRESOLVED_CRITICAL_INCIDENTS')

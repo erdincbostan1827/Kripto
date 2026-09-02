@@ -56,20 +56,40 @@ def create_runtime_checkpoint(
         raise ValueError("checkpoint signing secret is required")
     if last_event_sequence < 0:
         raise ValueError("last_event_sequence must be non-negative")
+    normalized_created_at = float(created_at_unix)
+    normalized_risk_state = str(risk_state)
+    normalized_config_hash = str(config_hash)
+    normalized_sequence = int(last_event_sequence)
+    normalized_positions = {str(k): str(v) for k, v in sorted(positions.items())}
+    normalized_order_ids = tuple(sorted(str(x) for x in open_order_ids))
+    normalized_reservations = {str(k): str(v) for k, v in sorted(reservations.items())}
+    normalized_event_chain_hash = str(event_chain_hash)
     unsigned = {
         "version": version,
-        "created_at_unix": float(created_at_unix),
-        "risk_state": str(risk_state),
-        "config_hash": str(config_hash),
-        "last_event_sequence": int(last_event_sequence),
-        "positions": {str(k): str(v) for k, v in sorted(positions.items())},
-        "open_order_ids": tuple(sorted(str(x) for x in open_order_ids)),
-        "reservations": {str(k): str(v) for k, v in sorted(reservations.items())},
-        "event_chain_hash": str(event_chain_hash),
+        "created_at_unix": normalized_created_at,
+        "risk_state": normalized_risk_state,
+        "config_hash": normalized_config_hash,
+        "last_event_sequence": normalized_sequence,
+        "positions": normalized_positions,
+        "open_order_ids": normalized_order_ids,
+        "reservations": normalized_reservations,
+        "event_chain_hash": normalized_event_chain_hash,
     }
     payload_hash = sha256(_canonical(unsigned)).hexdigest()
     signature = hmac.new(secret, payload_hash.encode("ascii"), sha256).hexdigest()
-    return RuntimeCheckpoint(**unsigned, payload_hash=payload_hash, signature=signature)
+    return RuntimeCheckpoint(
+        version=version,
+        created_at_unix=normalized_created_at,
+        risk_state=normalized_risk_state,
+        config_hash=normalized_config_hash,
+        last_event_sequence=normalized_sequence,
+        positions=normalized_positions,
+        open_order_ids=normalized_order_ids,
+        reservations=normalized_reservations,
+        event_chain_hash=normalized_event_chain_hash,
+        payload_hash=payload_hash,
+        signature=signature,
+    )
 
 
 def verify_runtime_checkpoint(checkpoint: RuntimeCheckpoint, *, secret: bytes) -> bool:

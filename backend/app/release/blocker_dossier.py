@@ -6,7 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Iterable
 import json
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 EXTERNAL_SECTIONS = {43, 51, 96, 97, 99, 100, 178, 181, 184, 189}

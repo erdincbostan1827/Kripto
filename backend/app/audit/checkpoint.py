@@ -32,9 +32,10 @@ def merkle_root(record_hashes:list[str])->str:
 def create_checkpoint(record_hashes:list[str], *, sequence:int, secret:bytes, previous_checkpoint_hash:str|None=None, actor:str, action:str, object_ref:str, correlation_id:str, reason:str, release_version:str, created_at:str|None=None):
     if not secret: raise ValueError('checkpoint signing secret required')
     ts=created_at or datetime.now(timezone.utc).isoformat()
-    unsigned=dict(sequence=sequence,root_hash=merkle_root(record_hashes),previous_checkpoint_hash=previous_checkpoint_hash,actor=actor,action=action,object_ref=object_ref,correlation_id=correlation_id,reason=reason,release_version=release_version,created_at=ts)
+    root_hash=merkle_root(record_hashes)
+    unsigned=dict(sequence=sequence,root_hash=root_hash,previous_checkpoint_hash=previous_checkpoint_hash,actor=actor,action=action,object_ref=object_ref,correlation_id=correlation_id,reason=reason,release_version=release_version,created_at=ts)
     sig=hmac.new(secret,json.dumps(unsigned,sort_keys=True,separators=(',',':')).encode(),hashlib.sha256).hexdigest()
-    return AuditCheckpoint(**unsigned,signature=sig)
+    return AuditCheckpoint(sequence=sequence,root_hash=root_hash,previous_checkpoint_hash=previous_checkpoint_hash,actor=actor,action=action,object_ref=object_ref,correlation_id=correlation_id,reason=reason,release_version=release_version,created_at=ts,signature=sig)
 
 def verify_checkpoint(checkpoint:AuditCheckpoint, record_hashes:list[str], *, secret:bytes, expected_previous_hash:str|None=None)->bool:
     if checkpoint.root_hash != merkle_root(record_hashes): return False

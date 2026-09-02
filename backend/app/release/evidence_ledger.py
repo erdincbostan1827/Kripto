@@ -8,8 +8,10 @@ import os
 import tempfile
 from typing import Any
 
+fcntl: Any
 try:
-    import fcntl
+    import fcntl as _fcntl
+    fcntl = _fcntl
 except ImportError:  # pragma: no cover - production acceptance is Linux
     fcntl = None
 

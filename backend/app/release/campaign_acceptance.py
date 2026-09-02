@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from backend.app.release.acceptance_challenge import verify_challenge
 from backend.app.release.path_integrity import PathIntegrityError, strict_regular_file
@@ -103,20 +103,22 @@ def _common_problems(payload: dict[str, Any], *, kind: str, root: Path, max_age_
     if current_git != "UNAVAILABLE" and payload.get("git_commit_sha") != current_git:
         problems.append("GIT_COMMIT_MISMATCH")
     challenge = verify_challenge(root / "reports/external_acceptance/release_challenge.json", root=root, require_trust=True if strict_external else None)
-    bound = payload.get("release_challenge") if isinstance(payload.get("release_challenge"), dict) else {}
+    raw_bound = payload.get("release_challenge")
+    bound: dict[str, Any] = raw_bound if isinstance(raw_bound, dict) else {}
     if not challenge.get("verified"):
         problems.append("RELEASE_CHALLENGE_NOT_VERIFIED")
     elif bound.get("challenge_id") != challenge.get("challenge_id") or bound.get("sha256") != challenge.get("sha256"):
         problems.append("RELEASE_CHALLENGE_BINDING_MISMATCH")
     if strict_external:
-        expected = expected_environment if isinstance(expected_environment, dict) else _environment_binding()
-        expected_env = expected.get("acceptance_environment_id_hash")
-        expected_topology = expected.get("topology_hash")
+        expected_binding = expected_environment if isinstance(expected_environment, dict) else _environment_binding()
+        expected_env = expected_binding.get("acceptance_environment_id_hash")
+        expected_topology = expected_binding.get("topology_hash")
         if not isinstance(expected_env, str) or len(expected_env) != 64:
             problems.append("ACCEPTANCE_ENVIRONMENT_IDENTITY_MISSING")
         if not isinstance(expected_topology, str) or len(expected_topology) != 64:
             problems.append("ACCEPTANCE_TOPOLOGY_HASH_MISSING")
-        environment = payload.get("environment") if isinstance(payload.get("environment"), dict) else {}
+        raw_environment = payload.get("environment")
+        environment: dict[str, Any] = raw_environment if isinstance(raw_environment, dict) else {}
         if isinstance(expected_env, str) and environment.get("acceptance_environment_id_hash") != expected_env:
             problems.append("ACCEPTANCE_ENVIRONMENT_ID_MISMATCH")
         if isinstance(expected_topology, str) and environment.get("topology_hash") != expected_topology:
@@ -138,7 +140,7 @@ def _common_problems(payload: dict[str, Any], *, kind: str, root: Path, max_age_
             if not isinstance(row, dict):
                 problems.append(f"SOURCE_ARTIFACT_INVALID:{idx}")
                 continue
-            rel, expected = row.get("path"), row.get("sha256")
+            rel, expected_sha = row.get("path"), row.get("sha256")
             try:
                 if strict_external:
                     p = strict_regular_file(root, str(rel))
@@ -150,7 +152,7 @@ def _common_problems(payload: dict[str, Any], *, kind: str, root: Path, max_age_
                 continue
             if not p.is_file():
                 problems.append(f"SOURCE_ARTIFACT_MISSING:{idx}")
-            elif not isinstance(expected, str) or _sha(p) != expected:
+            elif not isinstance(expected_sha, str) or _sha(p) != expected_sha:
                 problems.append(f"SOURCE_ARTIFACT_HASH_MISMATCH:{idx}")
     return problems
 
@@ -159,22 +161,26 @@ def verify_campaign_evidence(path: Path, *, kind: str, root: Path, max_age_hours
     if kind not in CLASSIFICATIONS:
         raise ValueError(f"unsupported campaign evidence kind: {kind}")
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        loaded: Any = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         return {"verified": False, "problems": [f"INVALID_JSON:{type(exc).__name__}"], "kind": kind}
+    if not isinstance(loaded, dict):
+        return {"verified": False, "problems": ["INVALID_JSON_ROOT"], "kind": kind}
+    payload = cast(dict[str, Any], loaded)
     problems = _common_problems(payload, kind=kind, root=root, max_age_hours=max_age_hours, strict_external=strict_external, expected_environment=expected_environment)
-    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+    raw_metrics = payload.get("metrics")
+    metrics: dict[str, Any] = raw_metrics if isinstance(raw_metrics, dict) else {}
     numeric_valid = _numeric_metrics_are_valid(metrics, kind=kind)
     if not numeric_valid:
         problems.append("NON_FINITE_OR_INVALID_NUMERIC_METRIC")
 
     if kind == "private-stream":
-        required_true = (
+        private_required_true = (
             "credentialed_testnet", "auth_lifecycle_passed", "reconnect_passed",
             "rest_reconciliation_passed", "duplicate_event_idempotency_passed",
             "out_of_order_protection_passed", "secrets_redacted",
         )
-        if any(metrics.get(k) is not True for k in required_true):
+        if any(metrics.get(k) is not True for k in private_required_true):
             problems.append("PRIVATE_STREAM_REQUIRED_CHECK_FAILED")
         if numeric_valid and _strict_int(metrics.get("observed_events")) <= 0:
             problems.append("PRIVATE_STREAM_NO_EVENTS")
@@ -208,8 +214,8 @@ def verify_campaign_evidence(path: Path, *, kind: str, root: Path, max_age_hours
         if metrics.get("kill_switch_tested") is not True or metrics.get("reconciliation_passed") is not True:
             problems.append("LIVE_SHADOW_SAFETY_CHECK_FAILED")
     elif kind == "profitability":
-        required_true = ("real_point_in_time_data", "independent_oos", "leakage_checks_passed", "cost_stress_passed", "survivorship_controls_passed")
-        if any(metrics.get(k) is not True for k in required_true):
+        profitability_required_true = ("real_point_in_time_data", "independent_oos", "leakage_checks_passed", "cost_stress_passed", "survivorship_controls_passed")
+        if any(metrics.get(k) is not True for k in profitability_required_true):
             problems.append("PIT_PROFITABILITY_INTEGRITY_CHECK_FAILED")
         if numeric_valid and _finite_number(metrics.get("effective_sample_size")) < 100:
             problems.append("PIT_PROFITABILITY_SAMPLE_TOO_SMALL")
