@@ -1,4 +1,4 @@
-name: Phase 221 External Environment Preflight
+name: Phase 221 External Blocker Reduction
 
 on:
   push:
@@ -8,61 +8,195 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
-  external-preflight:
+  redis-restart-persistence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Real Redis 8 AOF restart/persistence drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase221-redis-data"
+          chmod 777 "$RUNNER_TEMP/phase221-redis-data"
+          docker pull redis:8
+          docker run -d --name phase221-redis-restart -v "$RUNNER_TEMP/phase221-redis-data:/data" redis:8 redis-server --appendonly yes --appendfsync always
+          for i in {1..60}; do docker exec phase221-redis-restart redis-cli ping | grep -q PONG && break; sleep 1; done
+          docker exec phase221-redis-restart redis-cli SET phase221:persist exact-value | grep -q OK
+          docker exec phase221-redis-restart redis-cli BGREWRITEAOF || true
+          sleep 2
+          docker stop phase221-redis-restart
+          docker rm phase221-redis-restart
+          docker run -d --name phase221-redis-restart-2 -v "$RUNNER_TEMP/phase221-redis-data:/data" redis:8 redis-server --appendonly yes --appendfsync always
+          for i in {1..60}; do docker exec phase221-redis-restart-2 redis-cli ping | grep -q PONG && break; sleep 1; done
+          test "$(docker exec phase221-redis-restart-2 redis-cli --raw GET phase221:persist)" = "exact-value"
+          echo 'PHASE221_REDIS_RESTART_PERSISTENCE=PASS'
+
+  postgres-pitr:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Runner and network preflight
+      - name: Real PostgreSQL 18 PITR restore drill
         shell: bash
         run: |
           set -euo pipefail
-          echo "PHASE221_RUNNER=github-hosted"
-          uname -a
-          git --version
-          docker --version
-          docker compose version
-          getent hosts github.com
-          getent hosts registry.npmjs.org
-          getent hosts pypi.org
-          curl --fail --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -I https://registry.npmjs.org/
-          curl --fail --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -I https://pypi.org/simple/
-          npm ping --registry=https://registry.npmjs.org/
-      - name: Real Docker engine acceptance
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker info
-          docker run --rm hello-world
-      - name: PostgreSQL container readiness
-        shell: bash
-        run: |
-          set -euo pipefail
+          ROOT="$RUNNER_TEMP/phase221-pitr"
+          mkdir -p "$ROOT"/{primary,archive,backup,restore}
+          chmod -R 777 "$ROOT"
           docker pull postgres:18
-          docker run -d --rm --name phase221-postgres -e POSTGRES_PASSWORD=phase221 -p 55432:5432 postgres:18
-          for i in {1..60}; do
-            if docker exec phase221-postgres pg_isready -U postgres; then exit 0; fi
-            sleep 2
-          done
-          docker logs phase221-postgres
-          exit 1
-      - name: Redis container readiness
+          docker run -d --name phase221-pitr-primary \
+            -e POSTGRES_PASSWORD=phase221 \
+            -e PGDATA=/var/lib/postgresql/data/pgdata \
+            -v "$ROOT/primary:/var/lib/postgresql/data" \
+            -v "$ROOT/archive:/archive" \
+            -v "$ROOT/backup:/backup" \
+            postgres:18 postgres \
+            -c wal_level=replica \
+            -c archive_mode=on \
+            -c "archive_command=test ! -f /archive/%f && cp %p /archive/%f" \
+            -c archive_timeout=2s
+          for i in {1..90}; do docker exec phase221-pitr-primary pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          docker exec phase221-pitr-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE TABLE pitr_probe(id int primary key, marker text); INSERT INTO pitr_probe VALUES (1,'baseline');"
+          docker exec -e PGPASSWORD=phase221 phase221-pitr-primary pg_basebackup -h 127.0.0.1 -U postgres -D /backup/base -Fp -Xs -P
+          docker exec phase221-pitr-primary psql -U postgres -v ON_ERROR_STOP=1 -c "INSERT INTO pitr_probe VALUES (2,'before-target');"
+          TARGET="$(docker exec phase221-pitr-primary psql -U postgres -Atc "SELECT clock_timestamp();")"
+          sleep 3
+          docker exec phase221-pitr-primary psql -U postgres -v ON_ERROR_STOP=1 -c "INSERT INTO pitr_probe VALUES (3,'after-target'); CHECKPOINT; SELECT pg_switch_wal();"
+          sleep 4
+          docker stop phase221-pitr-primary
+          sudo cp -a "$ROOT/backup/base/." "$ROOT/restore/"
+          sudo bash -c "cat >> '$ROOT/restore/postgresql.auto.conf'" <<EOF
+          restore_command = 'cp /archive/%f %p'
+          recovery_target_time = '$TARGET'
+          recovery_target_action = 'promote'
+          EOF
+          sudo touch "$ROOT/restore/recovery.signal"
+          sudo chown -R 999:999 "$ROOT/restore"
+          sudo chmod 700 "$ROOT/restore"
+          docker run -d --name phase221-pitr-restored \
+            -e PGDATA=/var/lib/postgresql/data \
+            -v "$ROOT/restore:/var/lib/postgresql/data" \
+            -v "$ROOT/archive:/archive:ro" \
+            postgres:18 postgres
+          for i in {1..90}; do docker exec phase221-pitr-restored pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          ROWS="$(docker exec phase221-pitr-restored psql -U postgres -Atc "SELECT string_agg(id::text || ':' || marker, ',' ORDER BY id) FROM pitr_probe;")"
+          echo "PITR_ROWS=$ROWS"
+          test "$ROWS" = "1:baseline,2:before-target"
+          echo 'PHASE221_POSTGRES_PITR=PASS'
+
+  postgres-ha-failover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Real PostgreSQL 18 streaming replication and failover drill
         shell: bash
         run: |
           set -euo pipefail
-          docker pull redis:8
-          docker run -d --rm --name phase221-redis -p 56379:6379 redis:8
-          for i in {1..60}; do
-            if docker exec phase221-redis redis-cli ping | grep -q PONG; then exit 0; fi
-            sleep 2
-          done
-          docker logs phase221-redis
-          exit 1
-      - name: Browser availability probe
+          ROOT="$RUNNER_TEMP/phase221-ha"
+          mkdir -p "$ROOT"/{primary,standby}
+          chmod -R 777 "$ROOT"
+          docker network create phase221-ha-net
+          docker pull postgres:18
+          docker run -d --name phase221-ha-primary --network phase221-ha-net \
+            -e POSTGRES_PASSWORD=phase221 \
+            -e PGDATA=/var/lib/postgresql/data/pgdata \
+            -v "$ROOT/primary:/var/lib/postgresql/data" \
+            postgres:18 postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10 -c hot_standby=on
+          for i in {1..90}; do docker exec phase221-ha-primary pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replpass';"
+          docker exec phase221-ha-primary bash -lc "echo 'host replication replicator 0.0.0.0/0 scram-sha-256' >> \"$PGDATA/pg_hba.conf\" && pg_ctl -D \"$PGDATA\" reload"
+          docker run --rm --network phase221-ha-net \
+            -v "$ROOT/standby:/standby" \
+            postgres:18 bash -lc "PGPASSWORD=replpass pg_basebackup -h phase221-ha-primary -U replicator -D /standby/pgdata -Fp -Xs -P -R"
+          sudo bash -c "cat >> '$ROOT/standby/pgdata/postgresql.auto.conf'" <<'EOF'
+          primary_conninfo = 'host=phase221-ha-primary port=5432 user=replicator password=replpass application_name=phase221-standby'
+          EOF
+          sudo chown -R 999:999 "$ROOT/standby/pgdata"
+          sudo chmod 700 "$ROOT/standby/pgdata"
+          docker run -d --name phase221-ha-standby --network phase221-ha-net \
+            -e PGDATA=/var/lib/postgresql/data \
+            -v "$ROOT/standby/pgdata:/var/lib/postgresql/data" \
+            postgres:18 postgres -c hot_standby=on
+          for i in {1..90}; do docker exec phase221-ha-standby pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT pg_is_in_recovery();')" = "t"
+          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE TABLE ha_probe(id int primary key, marker text); INSERT INTO ha_probe VALUES (1,'replicated');"
+          for i in {1..60}; do V="$(docker exec phase221-ha-standby psql -U postgres -Atc "SELECT marker FROM ha_probe WHERE id=1;" 2>/dev/null || true)"; [ "$V" = replicated ] && break; sleep 1; done
+          test "$(docker exec phase221-ha-standby psql -U postgres -Atc "SELECT marker FROM ha_probe WHERE id=1;")" = replicated
+          docker stop phase221-ha-primary
+          docker exec phase221-ha-standby psql -U postgres -v ON_ERROR_STOP=1 -c "SELECT pg_promote(true, 30);"
+          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT pg_is_in_recovery();')" = "f"
+          docker exec phase221-ha-standby psql -U postgres -v ON_ERROR_STOP=1 -c "INSERT INTO ha_probe VALUES (2,'after-failover');"
+          test "$(docker inspect -f '{{.State.Running}}' phase221-ha-primary)" = "false"
+          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT count(*) FROM ha_probe;')" = "2"
+          echo 'PHASE221_POSTGRES_STREAMING_FAILOVER=PASS'
+
+  chromium-144-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Acquire and render with exact Chrome for Testing 144.0.7559.96
         shell: bash
         run: |
           set -euo pipefail
-          (google-chrome --version || chromium --version || chromium-browser --version || true)
-          node --version
-          npm --version
+          URL='https://storage.googleapis.com/chrome-for-testing-public/144.0.7559.96/linux64/chrome-linux64.zip'
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 15 --max-time 180 "$URL" -o "$RUNNER_TEMP/chrome144.zip"
+          unzip -q "$RUNNER_TEMP/chrome144.zip" -d "$RUNNER_TEMP/chrome144"
+          CHROME="$RUNNER_TEMP/chrome144/chrome-linux64/chrome"
+          VERSION="$($CHROME --version)"
+          echo "$VERSION"
+          echo "$VERSION" | grep -F '144.0.7559.96'
+          printf '<!doctype html><html><body><div id="root">phase221-render-ok</div></body></html>' > "$RUNNER_TEMP/phase221.html"
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --window-size=390,844 --screenshot="$RUNNER_TEMP/phase221.png" "file://$RUNNER_TEMP/phase221.html"
+          test -s "$RUNNER_TEMP/phase221.png"
+          test "$(stat -c%s "$RUNNER_TEMP/phase221.png")" -gt 1000
+          echo 'PHASE221_CHROMIUM_144_RUNTIME_RENDER=PASS'
+
+  binance-testnet-public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Binance Spot TESTNET public REST connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --connect-timeout 10 --max-time 30 https://testnet.binance.vision/api/v3/time -o "$RUNNER_TEMP/time.json"
+          curl --fail --silent --show-error --retry 4 --retry-all-errors --connect-timeout 10 --max-time 30 'https://testnet.binance.vision/api/v3/exchangeInfo?symbol=BTCUSDT' -o "$RUNNER_TEMP/exchangeInfo.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          t=json.loads((root/'time.json').read_text())
+          e=json.loads((root/'exchangeInfo.json').read_text())
+          assert isinstance(t.get('serverTime'), int) and t['serverTime'] > 0
+          assert e.get('symbols') and e['symbols'][0].get('symbol') == 'BTCUSDT'
+          print('PHASE221_BINANCE_TESTNET_PUBLIC=PASS')
+          PY
+
+  trusted-oidc-capability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Request GitHub Actions OIDC identity without exposing token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
+          RESP="$(curl --fail --silent --show-error -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=phase221-trusted-ci")"
+          export RESP
+          python - <<'PY'
+          import base64, json, os
+          token=json.loads(os.environ['RESP'])['value']
+          payload=token.split('.')[1]
+          payload += '=' * (-len(payload) % 4)
+          claims=json.loads(base64.urlsafe_b64decode(payload))
+          assert claims.get('aud') == 'phase221-trusted-ci'
+          assert claims.get('repository') == 'erdincbostan1827/Kripto'
+          assert claims.get('ref') == 'refs/heads/main'
+          print('OIDC_ISSUER=', claims.get('iss'))
+          print('OIDC_REPOSITORY=', claims.get('repository'))
+          print('OIDC_REF=', claims.get('ref'))
+          print('PHASE221_GITHUB_OIDC_CAPABILITY=PASS')
+          PY
