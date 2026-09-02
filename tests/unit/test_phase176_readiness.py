@@ -30,7 +30,12 @@ def test_phase176_readiness_has_specific_current_blocker_classes():
         assert payload["profiles"]["dependency-locks"]["blocker_classes"] == []
     else:
         assert payload["open_requirement_count"] > 0
-    assert counts["HOST_RUNTIME_CAPABILITY"] >= 1
+
+    if payload["preflight"]["groups"]["container_runtime"]:
+        assert "HOST_RUNTIME_CAPABILITY" not in counts
+    else:
+        assert counts["HOST_RUNTIME_CAPABILITY"] >= 1
+
     assert counts["TRUSTED_CI"] >= 1
     assert counts["REAL_BROWSER_ENVIRONMENT"] >= 1
     assert payload["preflight"]["all_external_prerequisites_ready"] is False
