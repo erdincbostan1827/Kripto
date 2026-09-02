@@ -22,12 +22,12 @@ def test_phase143_all_open_requirements_have_non_ambiguous_external_execution_pr
     assert 'cannot promote' in payload['truth_policy']
 
 
-def test_phase143_tauri_build_readiness_is_fail_closed_without_locks_and_rust():
+def test_phase143_tauri_build_readiness_recognizes_frontend_lock_and_fails_closed_without_rust():
     result = evaluate(confirm_real=False, timeout=1)
     assert result['classification'] == 'REAL_TAURI_BUILD_READINESS_NOT_SIGNING_EVIDENCE'
     assert result['verified'] is False
     assert 'REAL_TARGET_NOT_EXPLICITLY_CONFIRMED' in result['blockers']
-    assert 'FRONTEND_LOCK_MISSING' in result['blockers']
+    assert 'FRONTEND_LOCK_MISSING' not in result['blockers']
     assert 'TAURI_CARGO_LOCK_MISSING' in result['blockers']
     assert 'signing' in result['truth_policy'].lower()
 

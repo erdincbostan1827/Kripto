@@ -6,7 +6,7 @@ export type ServerStateListener=(state:RealtimeState<ServerDashboard>)=>void;
 
 export class AuthenticatedServerState {
   private state:RealtimeState<ServerDashboard>=initialRealtimeState<ServerDashboard>();
-  private ws?:WebSocket;
+  private ws:WebSocket|undefined;
   constructor(private readonly listener:ServerStateListener){}
   async start(){
     const response=await fetch(apiUrl('/api/v1/dashboard'),{credentials:'include',headers:{Accept:'application/json'}});

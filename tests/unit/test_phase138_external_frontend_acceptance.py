@@ -15,11 +15,10 @@ def test_frontend_browser_readiness_tool_is_fail_closed_and_kept_outside_canonic
     assert "Edge/Firefox/WebKit" in source
 
 
-def test_frontend_browser_acceptance_blocks_without_source_lock():
-    # Current source package intentionally has no dependency lock; the external acceptance must never promote this to PASS.
+def test_frontend_browser_acceptance_uses_source_lock_but_remains_fail_closed_without_real_target():
     result = run(timeout=1)
     assert result["verified"] is False
-    assert "FRONTEND_LOCK_MISSING" in result["blockers"]
+    assert "FRONTEND_LOCK_MISSING" not in result["blockers"]
     assert "REAL_TARGET_NOT_EXPLICITLY_CONFIRMED" in result["blockers"]
     assert result["real_target_explicitly_confirmed"] is False
     assert result["classification"] == "REAL_DEPENDENCY_RESOLVED_FRONTEND_BROWSER_ACCEPTANCE"

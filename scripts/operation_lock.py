@@ -13,6 +13,7 @@ from pathlib import Path
 LOCK_NAME = ".platform-operation.lock.json"
 SCHEMA_VERSION = "1.1"
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 5.0
+_PROCESS_INSTANCE_ID = uuid.uuid4().hex
 
 
 def _atomic_create_json(path: Path, payload: dict) -> None:
@@ -106,6 +107,12 @@ def _process_start_identity(pid: int) -> str | None:
             return f"proc-start-ticks:{tail[19]}"
     except OSError:
         pass
+    # Sandboxed runtimes may intentionally hide /proc and deny psutil's
+    # create_time probe.  A per-interpreter nonce still provides an
+    # unambiguous identity for locks owned by this process. Other processes
+    # remain unverifiable (fail closed) unless their OS identity is readable.
+    if pid == os.getpid():
+        return f"process-instance:{_PROCESS_INSTANCE_ID}"
     return None
 
 
@@ -310,4 +317,3 @@ def operation_lock(
                 current = None
             if current is not None and current.get("token") == token and current.get("process_start_identity") == process_start_identity and current.get("boot_identity") == boot_identity:
                 path.unlink()
-

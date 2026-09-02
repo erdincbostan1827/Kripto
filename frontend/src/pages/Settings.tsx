@@ -57,7 +57,7 @@ export default function Settings(){
       {setup ? labels.map((label,i)=>{
         const step=i+1;
         const done=setup.completed_steps.includes(step);
-        return <Stack key={step} direction={{xs:'column',sm:'row'}} spacing={1} alignItems={{sm:'center'}}>
+        return <Stack key={step} direction={{xs:'column',sm:'row'}} spacing={1} sx={{alignItems:{sm:'center'}}}>
           <Typography sx={{flex:1}}>{step}. {label} — {done?'Tamamlandı':step===setup.current_step?'Sırada':'Bekliyor'}</Typography>
           <Button disabled={done||step!==setup.current_step} onClick={()=>complete(step)}>{step===8?'Preflight onayla':'Adımı tamamla'}</Button>
         </Stack>;
@@ -67,7 +67,7 @@ export default function Settings(){
     <Card variant="outlined"><CardContent><Stack spacing={1.5}>
       <Typography variant="h6">Yönetim Alanları</Typography>
       <Typography variant="body2" color="text.secondary">Temel ayarlar sade tutulur; uzman seçenekleri yalnız ilgili alanda kademeli olarak açılır.</Typography>
-      <Stack direction={{xs:'column',sm:'row'}} spacing={1} useFlexGap flexWrap="wrap">
+      <Stack direction={{xs:'column',sm:'row'}} spacing={1} useFlexGap sx={{flexWrap:'wrap'}}>
         {['Exchange','Telegram/Bildirim','Risk','Coin Universe','Strategy','Kullanıcı & Güvenlik','Sistem Sağlığı','Yedekleme'].map(x=><Button key={x} variant="outlined" size="small">{x}</Button>)}
       </Stack>
       <details><summary>Gelişmiş ayrıntılar</summary><Typography variant="body2" sx={{mt:1}}>Risk artırıcı ayarlar varsayılan olarak seçili değildir. Değişiklikler backend doğrulamasına ve gerektiğinde ikinci onaya tabidir.</Typography></details>
@@ -78,7 +78,7 @@ export default function Settings(){
       <TextField label="Mevcut parola ile yeniden doğrula" type="password" value={mfaPassword} onChange={e=>setMfaPassword(e.target.value)} autoComplete="current-password"/>
       <Button variant="outlined" onClick={startMfa}>MFA enrollment başlat</Button>
       {mfaSecret&&<Alert severity="warning">TOTP secret: <code>{mfaSecret}</code> — authenticator’a ekledikten sonra aşağıdaki kodla doğrulayın.</Alert>}
-      <TextField label="TOTP kodu" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} inputProps={{inputMode:'numeric'}}/>
+      <TextField label="TOTP kodu" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} slotProps={{htmlInput:{inputMode:'numeric'}}}/>
       <Button disabled={!mfaSecret} onClick={finishMfa}>MFA’yı doğrula</Button>
       {recovery.length>0&&<><Divider/><Alert severity="warning">Recovery code’ları şimdi güvenli yerde saklayın; tekrar gösterilmez.</Alert><Typography component="pre" sx={{whiteSpace:'pre-wrap'}}>{recovery.join('\n')}</Typography></>}
     </Stack></CardContent></Card>

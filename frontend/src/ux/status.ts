@@ -10,5 +10,5 @@ export function humanStatus(code:SystemStatusCode,correlationId?:string):HumanSt
   BLOCKED:{title:'Engellendi',whatHappened:'Gerekli güvenlik kapısı geçmedi.',impact:'Yüksek riskli işlem engellendi.',automaticAction:'İşlem gönderilmedi.',userAction:'Eksik gate kanıtını tamamlayın.'},
   RECONCILING:{title:'Uzlaştırılıyor',whatHappened:'Exchange ve yerel state karşılaştırılıyor.',impact:'Yeni risk geçici olarak kapalı.',automaticAction:'Order/position/balance reconciliation çalışıyor.',userAction:'Tamamlanmasını bekleyin.'},
  };
- return {code,...map[code],correlationId};
+ return correlationId?{code,...map[code],correlationId}:{code,...map[code]};
 }

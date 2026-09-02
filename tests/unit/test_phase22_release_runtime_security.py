@@ -55,7 +55,7 @@ def test_phase22_supply_chain_evidence_is_explicit_and_never_promotes_missing_to
     root=Path(__file__).resolve().parents[2]
     e=collect_supply_chain_evidence(root)
     assert isinstance(e.tool_availability,dict) and len(e.fingerprint())==64
-    assert 'PYTHON_LOCK_MISSING' in e.production_blockers()
+    assert 'PYTHON_LOCK_MISSING' not in e.production_blockers()
     assert 'VULNERABILITY_SCAN_MISSING' in e.production_blockers()
 
 

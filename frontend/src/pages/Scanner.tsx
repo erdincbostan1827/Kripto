@@ -3,7 +3,7 @@ import {Alert,Box,Card,CardContent,Chip,Stack,Table,TableBody,TableCell,TableHea
 type Candidate={symbol:string;signal:string;score:number;confidence:string;regime:string;netEdge:string;blockReason:string};
 const demo:Candidate[]=[{symbol:'BTCUSDT',signal:'NO_TRADE',score:72,confidence:'Orta',regime:'BULLISH_TREND',netEdge:'0.18%',blockReason:'Canlı veri snapshotı bekleniyor'}];
 
-function CandidateCard({row}:{row:Candidate}){return <Card variant="outlined"><CardContent><Stack spacing={1}><Stack direction="row" justifyContent="space-between"><Typography variant="h6">{row.symbol}</Typography><Chip label={row.signal}/></Stack><Typography>Skor: {row.score} · Confidence: {row.confidence}</Typography><Typography>Rejim: {row.regime}</Typography><Typography>Net Edge: {row.netEdge}</Typography><Typography color="text.secondary">Risk/Block Nedeni: {row.blockReason}</Typography></Stack></CardContent></Card>}
+function CandidateCard({row}:{row:Candidate}){return <Card variant="outlined"><CardContent><Stack spacing={1}><Stack direction="row" sx={{justifyContent:'space-between'}}><Typography variant="h6">{row.symbol}</Typography><Chip label={row.signal}/></Stack><Typography>Skor: {row.score} · Confidence: {row.confidence}</Typography><Typography>Rejim: {row.regime}</Typography><Typography>Net Edge: {row.netEdge}</Typography><Typography color="text.secondary">Risk/Block Nedeni: {row.blockReason}</Typography></Stack></CardContent></Card>}
 
 export default function Scanner(){
  const theme=useTheme(); const mobile=useMediaQuery(theme.breakpoints.down('sm'));

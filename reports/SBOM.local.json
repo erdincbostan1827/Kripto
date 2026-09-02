@@ -500,6 +500,36 @@
       "version": "82.0.1"
     },
     {
+      "bom-ref": "urn:ctp:dependency:pypi:optional:test:pytest-asyncio@1.4.0",
+      "name": "pytest-asyncio",
+      "properties": [
+        {
+          "name": "ctp:dependency:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "ctp:dependency:scope",
+          "value": "optional:test"
+        },
+        {
+          "name": "ctp:dependency:direct",
+          "value": "true"
+        },
+        {
+          "name": "ctp:dependency:resolved_transitively",
+          "value": "false"
+        },
+        {
+          "name": "ctp:dependency:source_spec",
+          "value": "pytest-asyncio==1.4.0"
+        }
+      ],
+      "purl": "pkg:pypi/pytest-asyncio@1.4.0",
+      "resolved": false,
+      "type": "library",
+      "version": "1.4.0"
+    },
+    {
       "bom-ref": "urn:ctp:dependency:pypi:optional:test:pytest-cov@7.0.0",
       "name": "pytest-cov",
       "properties": [
@@ -800,6 +830,36 @@
       "version": "0.25.0"
     },
     {
+      "bom-ref": "urn:ctp:dependency:pypi:runtime:psutil@7.2.2",
+      "name": "psutil",
+      "properties": [
+        {
+          "name": "ctp:dependency:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "ctp:dependency:scope",
+          "value": "runtime"
+        },
+        {
+          "name": "ctp:dependency:direct",
+          "value": "true"
+        },
+        {
+          "name": "ctp:dependency:resolved_transitively",
+          "value": "false"
+        },
+        {
+          "name": "ctp:dependency:source_spec",
+          "value": "psutil==7.2.2"
+        }
+      ],
+      "purl": "pkg:pypi/psutil@7.2.2",
+      "resolved": false,
+      "type": "library",
+      "version": "7.2.2"
+    },
+    {
       "bom-ref": "urn:ctp:dependency:pypi:runtime:psycopg@3.3.4",
       "name": "psycopg",
       "properties": [
@@ -1007,19 +1067,19 @@
       },
       {
         "name": "ctp:sbom:pyproject_sha256",
-        "value": "aa2f43846e5f2c1b5504024f510bfe6b117e5bb3b7edba118e965a967f4dff24"
+        "value": "3dff200e67cace844ce3afee8d5f0b50d1dfe180bd5be866a3269999392ebcab"
       },
       {
         "name": "ctp:sbom:frontend_package_sha256",
         "value": "29d7c24546b97755416dd7cd5f226c5e638942348f516dc269b52e68b72aa929"
       }
     ],
-    "pyproject_sha256": "aa2f43846e5f2c1b5504024f510bfe6b117e5bb3b7edba118e965a967f4dff24",
+    "pyproject_sha256": "3dff200e67cace844ce3afee8d5f0b50d1dfe180bd5be866a3269999392ebcab",
     "resolved_dependency_lock": false,
     "transitive_dependencies_resolved": false,
     "vulnerability_scan_performed": false
   },
-  "serialNumber": "urn:uuid:b3a450cc-e9d1-5d65-b13a-71981f922153",
+  "serialNumber": "urn:uuid:91e90f57-d383-546c-a86e-c67802121752",
   "specVersion": "1.6",
   "version": 1
 }

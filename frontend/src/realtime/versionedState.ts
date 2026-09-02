@@ -1,5 +1,5 @@
 export type VersionedSnapshot<T>={sequence:number;version:string;receivedAt:number;sourceTime:number;payload:T};
-export type RealtimeState<T>={snapshot?:VersionedSnapshot<T>;stale:boolean;needsResync:boolean;lastDisconnectReason?:string};
+export type RealtimeState<T>={snapshot?:VersionedSnapshot<T>|undefined;stale:boolean;needsResync:boolean;lastDisconnectReason?:string|undefined};
 export const initialRealtimeState=<T>():RealtimeState<T>=>({stale:true,needsResync:true});
 export function applySnapshot<T>(_state:RealtimeState<T>,next:VersionedSnapshot<T>):RealtimeState<T>{
   return {snapshot:next,stale:false,needsResync:false};
