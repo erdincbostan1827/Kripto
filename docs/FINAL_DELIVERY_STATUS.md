@@ -5,6 +5,7 @@ This document is a delivery index, not a profitability claim and not a productio
 ## Project contents and installation
 
 - Complete source inventory is bound by `PACKAGE_MANIFEST.json`; package verification uses `scripts/verify_source_package_identity.py`.
+- Reproducible dependency resolution is committed in `uv.lock` and `frontend/package-lock.json`; both locks must match the source revision used for acceptance.
 - Installation and startup instructions: `README.md`, `docs/QUICKSTART.md`, `docs/FIRST_RUN_SETUP.md`.
 - User guides: `docs/PAPER_GUIDE.md`, `docs/LIVE_SECURITY_GUIDE.md`, `docs/TROUBLESHOOTING.md`, `docs/BACKUP_RESTORE.md`, `docs/EMERGENCY_PROCEDURE.md`.
 
