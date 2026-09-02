@@ -1,4 +1,4 @@
-name: Phase 221 PostgreSQL HA Retry
+name: Phase 221 PostgreSQL HA Retry 2
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Real PostgreSQL 18 streaming replication failover retry
+      - name: Real PostgreSQL 18 streaming replication failover retry 2
         shell: bash
         run: |
           set -euo pipefail
@@ -30,7 +30,8 @@ jobs:
             postgres:18 postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10 -c hot_standby=on
           for i in {1..90}; do docker exec phase221-ha-primary pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
           docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replpass';"
-          docker exec phase221-ha-primary bash -lc 'echo "host replication replicator 0.0.0.0/0 scram-sha-256" >> "$PGDATA/pg_hba.conf" && pg_ctl -D "$PGDATA" reload'
+          docker exec phase221-ha-primary bash -lc 'echo "host replication replicator 0.0.0.0/0 scram-sha-256" >> "$PGDATA/pg_hba.conf"'
+          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "SELECT pg_reload_conf();"
           docker run --rm --network phase221-ha-net \
             -v "$ROOT/standby:/standby" \
             postgres:18 bash -lc "PGPASSWORD=replpass pg_basebackup -h phase221-ha-primary -U replicator -D /standby/pgdata -Fp -Xs -P -R"
