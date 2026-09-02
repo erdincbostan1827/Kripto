@@ -21,7 +21,7 @@ jobs:
         run: |
           mkdir -p reports
           set -o pipefail
-          MYPYPATH=backend mypy --namespace-packages --explicit-package-bases backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY_FULL_TREE.txt
+          MYPYPATH=backend mypy --namespace-packages -p app --ignore-missing-imports 2>&1 | tee reports/MYPY_FULL_TREE.txt
       - name: Upload full-tree typecheck evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
