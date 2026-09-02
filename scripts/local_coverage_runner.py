@@ -13,9 +13,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.local_acceptance_runner import discover, select_shard
-from scripts.bounded_subprocess import run_captured
+from scripts.bounded_subprocess import run_captured, run_captured_split
 
 REPORTS = ROOT / "reports" / "local_coverage"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 
 def _sha(path: Path) -> str:
@@ -24,9 +25,11 @@ def _sha(path: Path) -> str:
 
 def _git_sha() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
         return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
 
 
 def _per_file_fallback(selected: list[str], data: Path, timeout: int) -> tuple[int | None, str, str | None]:
@@ -108,12 +111,16 @@ def run_shard(index: int, count: int, timeout: int) -> dict:
         output = timed_out_output + "\nSHARD_TIMEOUT\n" + fallback_output
         blocker = fallback_blocker
         status = "PASS" if exit_code == 0 and blocker is None and data.is_file() and data.stat().st_size > 0 else "BLOCKED"
+    git_sha = _git_sha()
+    if status == "PASS" and git_sha == "UNAVAILABLE":
+        status = "BLOCKED"
+        blocker = "GIT_IDENTITY_UNAVAILABLE"
     log.write_text(output, encoding="utf-8")
     payload = {
         "schema_version": "1.0",
         "classification": "LOCAL_COVERAGE_SHARD_EVIDENCE",
         "observed_at": observed,
-        "git_commit_sha": _git_sha(),
+        "git_commit_sha": git_sha,
         "shard_index": index,
         "shard_count": count,
         "discovered_file_count": len(all_files),

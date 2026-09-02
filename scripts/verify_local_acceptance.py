@@ -4,9 +4,16 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.bounded_subprocess import run_captured_split
+
 DEFAULT_MANIFEST = ROOT / "reports/local_acceptance/full_regression_manifest.json"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 
 def _sha(path: Path) -> str:
@@ -15,9 +22,11 @@ def _sha(path: Path) -> str:
 
 def _git_sha(root: Path) -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=root, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
         return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
 
 
 def verify_local_acceptance(path: Path = DEFAULT_MANIFEST, root: Path = ROOT) -> dict:
@@ -29,6 +38,8 @@ def verify_local_acceptance(path: Path = DEFAULT_MANIFEST, root: Path = ROOT) ->
     except Exception:
         return {"verified": False, "status": "BLOCKED", "problems": ["MANIFEST_INVALID_JSON"], "manifest_sha256": _sha(path)}
     current_git = _git_sha(root)
+    if current_git == "UNAVAILABLE":
+        problems.append("GIT_IDENTITY_UNAVAILABLE")
     if data.get("classification") != "LOCAL_FULL_REGRESSION_EVIDENCE":
         problems.append("CLASSIFICATION_INVALID")
     if data.get("git_commit_sha") != current_git:

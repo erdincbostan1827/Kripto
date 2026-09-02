@@ -6,9 +6,16 @@ import subprocess
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.bounded_subprocess import run_captured_split
+
 REPORTS = ROOT / "reports" / "local_acceptance"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 
 def _sha(path: Path) -> str:
@@ -17,9 +24,11 @@ def _sha(path: Path) -> str:
 
 def _git_sha() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
         return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
 
 
 def discover() -> list[str]:
@@ -30,6 +39,8 @@ def merge(shard_count: int) -> dict:
     expected_files = discover()
     expected_git = _git_sha()
     problems: list[str] = []
+    if expected_git == "UNAVAILABLE":
+        problems.append("GIT_IDENTITY_UNAVAILABLE")
     covered: list[str] = []
     shards = []
     for index in range(shard_count):
