@@ -1,4 +1,4 @@
-name: Phase 221 Keyless Signing Capability
+name: Phase 221 WORM and PostgreSQL Restart Drills
 
 on:
   push:
@@ -8,30 +8,76 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  keyless-sign-verify:
+  postgres-restart-persistence:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: Install cosign from source at pinned version
+      - name: Real PostgreSQL 18 same-volume restart persistence drill
         shell: bash
         run: |
           set -euo pipefail
-          go version
-          GOBIN="$RUNNER_TEMP/bin" go install github.com/sigstore/cosign/v2/cmd/cosign@v2.6.0
-          "$RUNNER_TEMP/bin/cosign" version
-      - name: Real GitHub OIDC keyless sign and verify
+          ROOT="$RUNNER_TEMP/phase221-pg-restart"
+          mkdir -p "$ROOT/data"
+          chmod 777 "$ROOT/data"
+          docker pull postgres:18
+          docker run -d --name phase221-pg-restart-1 \
+            -e POSTGRES_PASSWORD=phase221 \
+            -e PGDATA=/var/lib/postgresql/data/pgdata \
+            -v "$ROOT/data:/var/lib/postgresql/data" \
+            postgres:18
+          for i in {1..90}; do docker exec phase221-pg-restart-1 pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          docker exec phase221-pg-restart-1 psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE TABLE restart_probe(id int primary key, marker text); INSERT INTO restart_probe VALUES (1,'survives-restart'); CHECKPOINT;"
+          docker stop phase221-pg-restart-1
+          docker rm phase221-pg-restart-1
+          docker run -d --name phase221-pg-restart-2 \
+            -e POSTGRES_PASSWORD=phase221 \
+            -e PGDATA=/var/lib/postgresql/data/pgdata \
+            -v "$ROOT/data:/var/lib/postgresql/data" \
+            postgres:18
+          for i in {1..90}; do docker exec phase221-pg-restart-2 pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
+          test "$(docker exec phase221-pg-restart-2 psql -U postgres -Atc "SELECT marker FROM restart_probe WHERE id=1;")" = "survives-restart"
+          echo 'PHASE221_POSTGRES_RESTART_PERSISTENCE=PASS'
+
+  worm-object-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_ACCESS_KEY_ID: phase221admin
+      AWS_SECRET_ACCESS_KEY: phase221secretkey
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - name: Real S3-compatible COMPLIANCE object-lock delete-denial drill
         shell: bash
         run: |
           set -euo pipefail
-          printf 'phase221 trusted signing capability\n' > "$RUNNER_TEMP/phase221-artifact.txt"
-          "$RUNNER_TEMP/bin/cosign" sign-blob --yes --bundle "$RUNNER_TEMP/phase221-cosign.bundle" "$RUNNER_TEMP/phase221-artifact.txt"
-          "$RUNNER_TEMP/bin/cosign" verify-blob \
-            --bundle "$RUNNER_TEMP/phase221-cosign.bundle" \
-            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-            --certificate-identity-regexp '^https://github.com/erdincbostan1827/Kripto/.github/workflows/phase220-main-noop.yml@refs/heads/main$' \
-            "$RUNNER_TEMP/phase221-artifact.txt"
-          test -s "$RUNNER_TEMP/phase221-cosign.bundle"
-          echo 'PHASE221_KEYLESS_SIGNING_CAPABILITY=PASS'
+          docker pull minio/minio:latest
+          docker run -d --name phase221-minio \
+            -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
+            -p 9000:9000 \
+            minio/minio:latest server /data --console-address ':9001'
+          for i in {1..90}; do curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null 2>&1 && break; sleep 1; done
+          docker inspect --format='MINIO_IMAGE={{.Image}}' phase221-minio
+          if ! command -v aws >/dev/null 2>&1; then python -m pip install --disable-pip-version-check awscli; fi
+          ENDPOINT='http://127.0.0.1:9000'
+          BUCKET='phase221-worm'
+          aws --endpoint-url "$ENDPOINT" s3api create-bucket --bucket "$BUCKET" --object-lock-enabled-for-bucket
+          printf 'phase221 immutable evidence\n' > "$RUNNER_TEMP/evidence.txt"
+          aws --endpoint-url "$ENDPOINT" s3api put-object --bucket "$BUCKET" --key evidence.txt --body "$RUNNER_TEMP/evidence.txt" >/dev/null
+          VERSION="$(aws --endpoint-url "$ENDPOINT" s3api list-object-versions --bucket "$BUCKET" --query 'Versions[?Key==`evidence.txt`][0].VersionId' --output text)"
+          test -n "$VERSION" && test "$VERSION" != None
+          RETAIN_UNTIL="$(date -u -d '+1 day' '+%Y-%m-%dT%H:%M:%SZ')"
+          aws --endpoint-url "$ENDPOINT" s3api put-object-retention \
+            --bucket "$BUCKET" --key evidence.txt --version-id "$VERSION" \
+            --retention "Mode=COMPLIANCE,RetainUntilDate=$RETAIN_UNTIL"
+          aws --endpoint-url "$ENDPOINT" s3api get-object-retention --bucket "$BUCKET" --key evidence.txt --version-id "$VERSION"
+          set +e
+          aws --endpoint-url "$ENDPOINT" s3api delete-object --bucket "$BUCKET" --key evidence.txt --version-id "$VERSION" >"$RUNNER_TEMP/delete.out" 2>"$RUNNER_TEMP/delete.err"
+          RC=$?
+          set -e
+          test "$RC" -ne 0
+          grep -Eiq 'AccessDenied|ObjectLocked|retention|locked' "$RUNNER_TEMP/delete.err"
+          aws --endpoint-url "$ENDPOINT" s3api head-object --bucket "$BUCKET" --key evidence.txt --version-id "$VERSION" >/dev/null
+          echo 'PHASE221_WORM_COMPLIANCE_DELETE_DENIAL=PASS'
