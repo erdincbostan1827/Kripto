@@ -224,10 +224,22 @@ RULES = [
 
     # Phase 29 local acceptance/provenance hardening.
     rule(42, r"Bölüm 42 \(TESTLER\)", "test_test_suite_has_required_local_safety_and_recovery_categories", "tests"),
+    # Phase 220 aggregate technology-profile closure after committed source locks became real.
+    rule(1, r"^Bölüm 1 \(TEKNOLOJİ YIĞINI\)", "test_phase220_section1_technology_profile_is_complete_with_committed_locks", "architecture_profile.yaml"),
+    # Phase 220: both canonical dependency locks are now committed and exact-HEAD verified.
+    # This closes only the source lockfile requirements; resolved vulnerability/license/CI
+    # acceptance remains external and is intentionally NOT_TESTED.
+    rule(1, r"package-lock/pnpm-lock/uv\.lock gibi lockfile üret", "test_current_source_reports_committed_locks_as_verified", "scripts/verify_source_locks.py"),
+    rule(96, r"^lock file kullan$", "test_current_source_reports_committed_locks_as_verified", "scripts/verify_source_locks.py"),
     rule(96, r"direct dependencies pin", "test_python_and_frontend_direct_dependencies_are_exactly_pinned", "pyproject.toml"),
+    # Phase 220 CI/CD implementation umbrella: workflow contract is complete, while
+    # trusted CI release provenance remains a separate external acceptance gate.
+    rule(97, r"^Bölüm 97 \(CI/CD / RELEASE GATES\)", "test_phase59_ci_build_evidence_has_lock_test_scan_sbom_and_provenance_chain", ".github/workflows/production-acceptance.yml"),
     rule(97, r"immutable version/tag", "test_local_git_provenance_has_real_clean_commit_and_immutable_tag", "reports/LOCAL_SOURCE_PROVENANCE.json"),
     rule(97, r"^git SHA$", "test_local_git_provenance_has_real_clean_commit_and_immutable_tag", "reports/LOCAL_SOURCE_PROVENANCE.json"),
     rule(189, r"^git commit SHA$", "test_local_git_provenance_has_real_clean_commit_and_immutable_tag", "reports/LOCAL_SOURCE_PROVENANCE.json"),
+    rule(97, r"^dependency lock hash$", "test_provenance_capture_hashes_real_build_inputs", "scripts/external/provenance_capture.py"),
+    rule(189, r"^dependency lock hash$", "test_provenance_capture_hashes_real_build_inputs", "scripts/external/provenance_capture.py"),
 
     # Concurrency, account boundary, strategy ownership, events.
     rule(89, r"fencing token", "test_persistent_fencing_token_increases_after_expiry", "backend/app/execution/persistent.py"),

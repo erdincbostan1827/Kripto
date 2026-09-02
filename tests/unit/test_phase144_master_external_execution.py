@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 import scripts.external.run_all_external_requirements as master
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,8 +15,10 @@ def test_phase144_master_plan_covers_all_open_requirements_without_execution(tmp
     monkeypatch.setattr(master, "evaluate_tauri_build", lambda **k: called.__setitem__("tauri", called["tauri"] + 1))
     result = master.execute_all(confirm_real=False, timeout=1)
     assert result["executed"] is False
-    assert result["open_requirement_count"] == 100
-    assert result["mapped_requirement_count"] == 100
+    matrix = yaml.safe_load((ROOT / "requirements_acceptance_matrix.yaml").read_text(encoding="utf-8"))
+    open_count = sum(row["status"] == "NOT_TESTED" for row in matrix["requirements"])
+    assert result["open_requirement_count"] == open_count
+    assert result["mapped_requirement_count"] == open_count
     assert result["unmapped_requirement_count"] == 0
     assert result["production_ready"] is False
     assert called == {"canonical": 0, "frontend": 0, "tauri": 0}

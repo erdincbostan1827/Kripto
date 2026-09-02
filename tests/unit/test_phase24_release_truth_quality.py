@@ -86,7 +86,8 @@ def test_phase24_blocker_dossier_classifies_remaining_p0_without_promoting_exter
     blockers = build_requirement_blockers(root / 'requirements_acceptance_matrix.yaml')
     assert blockers
     ids = {b.requirement_id: b for b in blockers}
-    assert ids['REQ-V51-096-002'].external_required and ids['REQ-V51-096-002'].category == 'SUPPLY_CHAIN_PROVENANCE'
+    assert 'REQ-V51-096-002' not in ids
+    assert ids['REQ-V51-096-005'].external_required and ids['REQ-V51-096-005'].category == 'SUPPLY_CHAIN_PROVENANCE'
     assert ids['REQ-V51-178-014'].external_required and ids['REQ-V51-178-014'].category == 'RECOVERY_HA_RUNTIME'
     assert ids['REQ-V51-043-002'].external_required and ids['REQ-V51-043-002'].category == 'MARKET_CAMPAIGN'
     out = tmp_path/'dossier.json'; payload = render_blocker_dossier(root/'requirements_acceptance_matrix.yaml', out)

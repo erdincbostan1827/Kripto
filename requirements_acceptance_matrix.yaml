@@ -1,7 +1,7 @@
 schema_version: '1.0'
 source_document: Kripto_Algoritmik_Trading_Platformu_Nihai_Prompt_v5.1_Production_Hardening(1).md
 source_sha256: 17600fdb8930fa4dcf97fd9f628ed8aea54e76cd02586daff813e20efee616a3
-generated_at: '2026-08-31T14:23:59.374124+00:00'
+generated_at: '2026-09-02T09:57:18.656166+00:00'
 allowed_status:
 - PASS
 - FAIL
@@ -16,15 +16,18 @@ requirements:
   requirement_text_summary: Bölüm 1 (TEKNOLOJİ YIĞINI) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   description: Bölüm 1 (TEKNOLOJİ YIĞINI) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   priority: P1
-  implementation_modules: &id001
-  - docs/ARCHITECTURE_DECISIONS.md
+  implementation_modules:
   - architecture_profile.yaml
-  implementation_module: docs/ARCHITECTURE_DECISIONS.md
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  - docs/ARCHITECTURE_DECISIONS.md
+  implementation_module: architecture_profile.yaml
+  test_ids:
+  - test_phase220_section1_technology_profile_is_complete_with_committed_locks
+  test_id: test_phase220_section1_technology_profile_is_complete_with_committed_locks
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase220_lock_and_profile_closure.py::test_phase220_section1_technology_profile_is_complete_with_committed_locks
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -36,7 +39,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: ARCH
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-001-002
   section: 1
   source_section: TEKNOLOJİ YIĞINI
@@ -332,13 +335,19 @@ requirements:
   requirement_text_summary: package-lock/pnpm-lock/uv.lock gibi lockfile üret.
   description: package-lock/pnpm-lock/uv.lock gibi lockfile üret.
   priority: P1
-  implementation_modules: *id001
-  implementation_module: docs/ARCHITECTURE_DECISIONS.md
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  implementation_modules:
+  - architecture_profile.yaml
+  - docs/ARCHITECTURE_DECISIONS.md
+  - scripts/verify_source_locks.py
+  implementation_module: architecture_profile.yaml
+  test_ids:
+  - test_current_source_reports_committed_locks_as_verified
+  test_id: test_current_source_reports_committed_locks_as_verified
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase78_source_lock_promotion.py::test_current_source_reports_committed_locks_as_verified
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -350,7 +359,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: ARCH
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-001-012
   section: 1
   source_section: TEKNOLOJİ YIĞINI
@@ -7251,7 +7260,7 @@ requirements:
   requirement_text_summary: Gerçek piyasa verisiyle sanal işlem yap.
   description: Gerçek piyasa verisiyle sanal işlem yap.
   priority: P1
-  implementation_modules: &id002
+  implementation_modules: &id001
   - backend/app/backtest
   - backend/app/paper
   implementation_module: backend/app/backtest
@@ -7279,7 +7288,7 @@ requirements:
   requirement_text_summary: entry
   description: entry
   priority: P1
-  implementation_modules: *id002
+  implementation_modules: *id001
   implementation_module: backend/app/backtest
   test_ids: []
   test_id: null
@@ -7305,7 +7314,7 @@ requirements:
   requirement_text_summary: stop
   description: stop
   priority: P1
-  implementation_modules: *id002
+  implementation_modules: *id001
   implementation_module: backend/app/backtest
   test_ids: []
   test_id: null
@@ -12359,7 +12368,7 @@ requirements:
   requirement_text_summary: redis
   description: redis
   priority: P0
-  implementation_modules: &id003
+  implementation_modules: &id002
   - tests
   - scripts
   - docker-compose.yml
@@ -12982,7 +12991,7 @@ requirements:
   requirement_text_summary: Bölüm 43 (TESTNET) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   description: Bölüm 43 (TESTNET) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -13008,7 +13017,7 @@ requirements:
   requirement_text_summary: market order
   description: market order
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -13034,7 +13043,7 @@ requirements:
   requirement_text_summary: limit order
   description: limit order
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -13060,7 +13069,7 @@ requirements:
   requirement_text_summary: cancel
   description: cancel
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -13086,7 +13095,7 @@ requirements:
   requirement_text_summary: partial fill
   description: partial fill
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -13674,7 +13683,7 @@ requirements:
   requirement_text_summary: Bölüm 46 (DOCKER) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   description: Bölüm 46 (DOCKER) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   priority: P0
-  implementation_modules: *id003
+  implementation_modules: *id002
   implementation_module: tests
   test_ids: []
   test_id: null
@@ -19222,7 +19231,7 @@ requirements:
     uygulama.
   description: Bölüm 65 (FINAL ACCEPTANCE TEST) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   priority: P1
-  implementation_modules: &id004
+  implementation_modules: &id003
   - backend/app
   - frontend/src
   - docs
@@ -19251,7 +19260,7 @@ requirements:
   requirement_text_summary: docker compose build
   description: docker compose build
   priority: P1
-  implementation_modules: *id004
+  implementation_modules: *id003
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -19277,7 +19286,7 @@ requirements:
   requirement_text_summary: docker compose up -d
   description: docker compose up -d
   priority: P1
-  implementation_modules: *id004
+  implementation_modules: *id003
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -19303,7 +19312,7 @@ requirements:
   requirement_text_summary: migrations
   description: migrations
   priority: P1
-  implementation_modules: *id004
+  implementation_modules: *id003
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -19395,7 +19404,7 @@ requirements:
   requirement_text_summary: paper trading
   description: paper trading
   priority: P1
-  implementation_modules: *id004
+  implementation_modules: *id003
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -19553,7 +19562,7 @@ requirements:
   requirement_text_summary: exchange testnet bağlantısı
   description: exchange testnet bağlantısı
   priority: P1
-  implementation_modules: *id004
+  implementation_modules: *id003
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -32243,7 +32252,7 @@ requirements:
   description: Bölüm 96 (SUPPLY CHAIN / DEPENDENCY SECURITY) hükümlerini canonical profile ve v5.1 precedence kurallarıyla
     uygulama.
   priority: P0
-  implementation_modules: &id005
+  implementation_modules: &id004
   - backend/app/execution
   - backend/app/data
   - backend/app/security
@@ -32273,13 +32282,21 @@ requirements:
   requirement_text_summary: lock file kullan
   description: lock file kullan
   priority: P0
-  implementation_modules: *id005
-  implementation_module: backend/app/execution
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  implementation_modules:
+  - backend/app/data
+  - backend/app/execution
+  - backend/app/security
+  - scripts/verify_source_locks.py
+  - tests
+  implementation_module: backend/app/data
+  test_ids:
+  - test_current_source_reports_committed_locks_as_verified
+  test_id: test_current_source_reports_committed_locks_as_verified
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase78_source_lock_promotion.py::test_current_source_reports_committed_locks_as_verified
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -32291,7 +32308,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: EXEC_HARDENING
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-096-003
   section: 96
   source_section: SUPPLY CHAIN / DEPENDENCY SECURITY
@@ -32367,7 +32384,7 @@ requirements:
   requirement_text_summary: vulnerability scan yap
   description: vulnerability scan yap
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32495,7 +32512,7 @@ requirements:
   requirement_text_summary: dependency license raporu üret
   description: dependency license raporu üret
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32521,7 +32538,7 @@ requirements:
   requirement_text_summary: pip-audit
   description: pip-audit
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32547,7 +32564,7 @@ requirements:
   requirement_text_summary: Trivy
   description: Trivy
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32573,7 +32590,7 @@ requirements:
   requirement_text_summary: gitleaks
   description: gitleaks
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32599,7 +32616,7 @@ requirements:
   requirement_text_summary: Bandit/Semgrep
   description: Bandit/Semgrep
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -32694,13 +32711,21 @@ requirements:
     uygulama.
   description: Bölüm 97 (CI/CD / RELEASE GATES) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama.
   priority: P0
-  implementation_modules: *id005
-  implementation_module: backend/app/execution
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  implementation_modules:
+  - .github/workflows/production-acceptance.yml
+  - backend/app/data
+  - backend/app/execution
+  - backend/app/security
+  - tests
+  implementation_module: .github/workflows/production-acceptance.yml
+  test_ids:
+  - test_phase59_ci_build_evidence_has_lock_test_scan_sbom_and_provenance_chain
+  test_id: test_phase59_ci_build_evidence_has_lock_test_scan_sbom_and_provenance_chain
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase59_production_acceptance_workflow.py::test_phase59_ci_build_evidence_has_lock_test_scan_sbom_and_provenance_chain
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -32712,7 +32737,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: EXEC_HARDENING
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-097-002
   section: 97
   source_section: CI/CD / RELEASE GATES
@@ -33265,13 +33290,21 @@ requirements:
   requirement_text_summary: dependency lock hash
   description: dependency lock hash
   priority: P0
-  implementation_modules: *id005
-  implementation_module: backend/app/execution
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  implementation_modules:
+  - backend/app/data
+  - backend/app/execution
+  - backend/app/security
+  - scripts/external/provenance_capture.py
+  - tests
+  implementation_module: backend/app/data
+  test_ids:
+  - test_provenance_capture_hashes_real_build_inputs
+  test_id: test_provenance_capture_hashes_real_build_inputs
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase38_ci_provenance.py::test_provenance_capture_hashes_real_build_inputs
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -33283,7 +33316,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: EXEC_HARDENING
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-097-019
   section: 97
   source_section: CI/CD / RELEASE GATES
@@ -33740,7 +33773,7 @@ requirements:
   description: Bölüm 99 (ADVANCED TESTING / FAULT INJECTION) hükümlerini canonical profile ve v5.1 precedence kurallarıyla
     uygulama.
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -34211,7 +34244,7 @@ requirements:
   requirement_text_summary: Redis restart
   description: Redis restart
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -34237,7 +34270,7 @@ requirements:
   requirement_text_summary: PostgreSQL restart
   description: PostgreSQL restart
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -34368,7 +34401,7 @@ requirements:
   requirement_text_summary: kritik senaryolarını test et.
   description: kritik senaryolarını test et.
   priority: P0
-  implementation_modules: *id005
+  implementation_modules: *id004
   implementation_module: backend/app/execution
   test_ids: []
   test_id: null
@@ -54191,7 +54224,7 @@ requirements:
   requirement_text_summary: Paper result
   description: Paper result
   priority: P1
-  implementation_modules: &id006
+  implementation_modules: &id005
   - backend/app/research
   - backend/app/risk
   - reports
@@ -54220,7 +54253,7 @@ requirements:
   requirement_text_summary: Testnet execution result
   description: Testnet execution result
   priority: P1
-  implementation_modules: *id006
+  implementation_modules: *id005
   implementation_module: backend/app/research
   test_ids: []
   test_id: null
@@ -54246,7 +54279,7 @@ requirements:
   requirement_text_summary: Live-shadow result
   description: Live-shadow result
   priority: P1
-  implementation_modules: *id006
+  implementation_modules: *id005
   implementation_module: backend/app/research
   test_ids: []
   test_id: null
@@ -73764,7 +73797,7 @@ requirements:
   description: Bölüm 167 (FRONTEND PERFORMANCE / STABILITY BUDGET) hükümlerini canonical profile ve v5.1 precedence kurallarıyla
     uygulama.
   priority: P1
-  implementation_modules: &id007
+  implementation_modules: &id006
   - frontend/src
   - tests/frontend
   implementation_module: frontend/src
@@ -74048,7 +74081,7 @@ requirements:
   requirement_text_summary: dashboard first meaningful render
   description: dashboard first meaningful render
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74074,7 +74107,7 @@ requirements:
   requirement_text_summary: scanner interaction latency
   description: scanner interaction latency
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74100,7 +74133,7 @@ requirements:
   requirement_text_summary: chart update latency
   description: chart update latency
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74158,7 +74191,7 @@ requirements:
   requirement_text_summary: browser memory after soak
   description: browser memory after soak
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74186,7 +74219,7 @@ requirements:
   description: Bölüm 168 (UI / UX / E2E ACCEPTANCE TESTLERİ) hükümlerini canonical profile ve v5.1 precedence kurallarıyla
     uygulama.
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74212,7 +74245,7 @@ requirements:
   requirement_text_summary: Vitest/Jest + React Testing Library veya eşdeğer
   description: Vitest/Jest + React Testing Library veya eşdeğer
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74238,7 +74271,7 @@ requirements:
   requirement_text_summary: form validation
   description: form validation
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74264,7 +74297,7 @@ requirements:
   requirement_text_summary: permissions
   description: permissions
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74290,7 +74323,7 @@ requirements:
   requirement_text_summary: state mapping
   description: state mapping
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74316,7 +74349,7 @@ requirements:
   requirement_text_summary: risk summary
   description: risk summary
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74342,7 +74375,7 @@ requirements:
   requirement_text_summary: number/precision display
   description: number/precision display
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74368,7 +74401,7 @@ requirements:
   requirement_text_summary: login/logout/session expiry
   description: login/logout/session expiry
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74394,7 +74427,7 @@ requirements:
   requirement_text_summary: first-run wizard
   description: first-run wizard
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74420,7 +74453,7 @@ requirements:
   requirement_text_summary: invalid exchange credential
   description: invalid exchange credential
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74446,7 +74479,7 @@ requirements:
   requirement_text_summary: withdrawal permission rejection
   description: withdrawal permission rejection
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74472,7 +74505,7 @@ requirements:
   requirement_text_summary: PAPER default
   description: PAPER default
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74498,7 +74531,7 @@ requirements:
   requirement_text_summary: scanner load/filter/sort
   description: scanner load/filter/sort
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74524,7 +74557,7 @@ requirements:
   requirement_text_summary: per-asset analysis navigation
   description: per-asset analysis navigation
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74582,7 +74615,7 @@ requirements:
   requirement_text_summary: WebSocket disconnect/reconnect/resync
   description: WebSocket disconnect/reconnect/resync
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74608,7 +74641,7 @@ requirements:
   requirement_text_summary: open position display
   description: open position display
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74634,7 +74667,7 @@ requirements:
   requirement_text_summary: SL/TP marker display
   description: SL/TP marker display
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74660,7 +74693,7 @@ requirements:
   requirement_text_summary: LIVE enable blocked by gate
   description: LIVE enable blocked by gate
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74686,7 +74719,7 @@ requirements:
   requirement_text_summary: successful controlled LIVE approval flow using mock/testnet
   description: successful controlled LIVE approval flow using mock/testnet
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74712,7 +74745,7 @@ requirements:
   requirement_text_summary: double-click/duplicate submit protection
   description: double-click/duplicate submit protection
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74738,7 +74771,7 @@ requirements:
   requirement_text_summary: risk setting increase confirmation
   description: risk setting increase confirmation
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74764,7 +74797,7 @@ requirements:
   requirement_text_summary: panic close confirmation using testnet/mock
   description: panic close confirmation using testnet/mock
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74790,7 +74823,7 @@ requirements:
   requirement_text_summary: mobile navigation
   description: mobile navigation
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74816,7 +74849,7 @@ requirements:
   requirement_text_summary: accessibility smoke
   description: accessibility smoke
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74842,7 +74875,7 @@ requirements:
   requirement_text_summary: Chromium/Chrome current
   description: Chromium/Chrome current
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74868,7 +74901,7 @@ requirements:
   requirement_text_summary: Edge current
   description: Edge current
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74894,7 +74927,7 @@ requirements:
   requirement_text_summary: Firefox current
   description: Firefox current
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74920,7 +74953,7 @@ requirements:
   requirement_text_summary: WebKit/Safari equivalent through supported E2E tooling
   description: WebKit/Safari equivalent through supported E2E tooling
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74946,7 +74979,7 @@ requirements:
   requirement_text_summary: 1920x1080
   description: 1920x1080
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74972,7 +75005,7 @@ requirements:
   requirement_text_summary: common laptop width
   description: common laptop width
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -74998,7 +75031,7 @@ requirements:
   requirement_text_summary: tablet
   description: tablet
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75024,7 +75057,7 @@ requirements:
   requirement_text_summary: representative mobile
   description: representative mobile
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75050,7 +75083,7 @@ requirements:
   requirement_text_summary: core dashboard
   description: core dashboard
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75076,7 +75109,7 @@ requirements:
   requirement_text_summary: scanner
   description: scanner
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75102,7 +75135,7 @@ requirements:
   requirement_text_summary: asset analysis
   description: asset analysis
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75128,7 +75161,7 @@ requirements:
   requirement_text_summary: LIVE warning modal
   description: LIVE warning modal
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75154,7 +75187,7 @@ requirements:
   requirement_text_summary: critical error banner
   description: critical error banner
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75374,7 +75407,7 @@ requirements:
   requirement_text_summary: production static build
   description: production static build
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -75464,7 +75497,7 @@ requirements:
   requirement_text_summary: signed installer/package mümkünse
   description: signed installer/package mümkünse
   priority: P1
-  implementation_modules: *id007
+  implementation_modules: *id006
   implementation_module: frontend/src
   test_ids: []
   test_id: null
@@ -81116,7 +81149,7 @@ requirements:
   description: Bölüm 178 (BACKUP / RPO / RTO / PITR / RESTORE DRILL) hükümlerini canonical profile ve v5.1 precedence kurallarıyla
     uygulama.
   priority: P0
-  implementation_modules: &id008
+  implementation_modules: &id007
   - backend/app
   - docs
   - tests
@@ -84513,7 +84546,7 @@ requirements:
   description: Bölüm 184 (PRODUCTION AVAILABILITY PROFILES / HA / STANDBY) hükümlerini canonical profile ve v5.1 precedence
     kurallarıyla uygulama.
   priority: P0
-  implementation_modules: *id008
+  implementation_modules: *id007
   implementation_module: backend/app
   test_ids: []
   test_id: null
@@ -87537,13 +87570,17 @@ requirements:
   - backend/app/release/provenance.py
   - docs
   - reports
+  - scripts/external/provenance_capture.py
   - tests
   implementation_module: backend/app
-  test_ids: []
-  test_id: null
-  evidence_refs: []
-  evidence: null
-  status: NOT_TESTED
+  test_ids:
+  - test_provenance_capture_hashes_real_build_inputs
+  test_id: test_provenance_capture_hashes_real_build_inputs
+  evidence_refs:
+  - reports/LATEST_PYTEST.txt
+  - tests/unit/test_phase38_ci_provenance.py::test_provenance_capture_hashes_real_build_inputs
+  evidence: reports/LATEST_PYTEST.txt
+  status: PASS
   supported_modes:
   - BACKTEST
   - PAPER
@@ -87555,7 +87592,7 @@ requirements:
   mock_or_real: MIXED
   known_limitations: []
   owner_component: V51_HARDENING
-  last_verified_release: null
+  last_verified_release: 0.3.0-local-acceptance
 - requirement_id: REQ-V51-189-008
   section: 189
   source_section: BUILD PROVENANCE / ARTIFACT SIGNING / RELEASE ATTESTATION

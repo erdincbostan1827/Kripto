@@ -12,11 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_phase175_every_open_requirement_has_one_profile_command_and_prerequisite_set():
     payload = build()
     assert payload["classification"] == "ACCEPTANCE_CLOSURE_STATUS_NOT_ACCEPTANCE_EVIDENCE"
-    assert payload["open_requirement_count"] == 100
-    assert payload["p0_open_requirement_count"] == 42
+    matrix = json.loads(json.dumps(__import__("yaml").safe_load((ROOT / "requirements_acceptance_matrix.yaml").read_text(encoding="utf-8"))))
+    open_rows = [row for row in matrix["requirements"] if row["status"] == "NOT_TESTED"]
+    p0_open_rows = [row for row in open_rows if row["priority"] == "P0"]
+    assert payload["open_requirement_count"] == len(open_rows)
+    assert payload["p0_open_requirement_count"] == len(p0_open_rows)
     assert payload["unmapped_requirement_count"] == 0
-    assert len(payload["requirements"]) == 100
-    assert sum(payload["profile_counts"].values()) == 100
+    assert len(payload["requirements"]) == len(open_rows)
+    assert sum(payload["profile_counts"].values()) == len(open_rows)
     for row in payload["requirements"]:
         assert row["profile"] in COMMANDS
         assert row["profile"] in PROFILE_PREREQUISITES
@@ -31,7 +34,12 @@ def test_phase175_external_requirements_never_become_pass_from_preflight():
     assert "NOT_ACCEPTANCE_EVIDENCE" in encoded
     assert "PASS" not in {row.get("status") for row in payload["requirements"]}
     ready = [row for row in payload["requirements"] if not row["blocked"]]
-    assert {row["profile"] for row in ready} == {"dependency-locks"}
+    for row in ready:
+        assert all(item["ready"] for item in row["prerequisites"])
+    # Once dependency-lock requirements themselves are closed they must disappear
+    # from the open closure plan instead of lingering as a permanently-ready row.
+    if payload["profile_counts"].get("dependency-locks", 0) == 0:
+        assert "dependency-locks" not in {row["profile"] for row in ready}
     assert payload["blocked_requirement_count"] == payload["open_requirement_count"] - len(ready)
 
 

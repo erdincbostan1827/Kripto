@@ -1,14 +1,14 @@
 # REQUIREMENTS_TRACEABILITY.md
 
 Release: `0.3.0-local-acceptance`
-Generated: `2026-08-31T14:24:01.421769+00:00`
-Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
+Generated: `2026-09-02T09:57:20.431802+00:00`
+Status counts: `{'PASS': 2597, 'NOT_TESTED': 94}`
 
 > PASS is evidence-bound to the current test inventory and latest green full-suite report. Credentialed exchange, Docker runtime, frontend resolved-build, PITR restore, live-shadow campaign and real-market statistical gates remain NOT_TESTED unless separately evidenced.
 
 | Requirement | Section | Priority | Status | Summary | Test evidence |
 |---|---:|---:|---|---|---|
-| REQ-V51-001-001 | 1 | P1 | NOT_TESTED | Bölüm 1 (TEKNOLOJİ YIĞINI) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama. |  |
+| REQ-V51-001-001 | 1 | P1 | PASS | Bölüm 1 (TEKNOLOJİ YIĞINI) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama. | test_phase220_section1_technology_profile_is_complete_with_committed_locks |
 | REQ-V51-001-002 | 1 | P1 | PASS | Kurulum problemi yaratacaksa pandas/numpy tabanlı indikatör implementasyonlarını kullan. | test_mandatory_indicator_feature_set_is_finite |
 | REQ-V51-001-003 | 1 | P1 | PASS | React 19.x veya implementasyon anındaki uyumlu güncel stable React major/minor | test_canonical_profile_matches_backend_and_frontend_manifests |
 | REQ-V51-001-004 | 1 | P1 | PASS | TypeScript strict mode | test_typescript_strict_and_production_defaults_are_conservative |
@@ -18,7 +18,7 @@ Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
 | REQ-V51-001-008 | 1 | P1 | PASS | sınırlı local UI state için Zustand/Redux Toolkit veya eşdeğeri; gereksiz global state kurma | test_phase125_local_ui_state_is_component_scoped_and_third_party_attribution_is_explicit |
 | REQ-V51-001-009 | 1 | P1 | PASS | Prompt içindeki sürüm numaralarını körlemesine sabitleme. | test_phase130_official_tauri_reference_is_version_checked_without_claiming_lock_or_build |
 | REQ-V51-001-010 | 1 | P1 | PASS | Implementasyon gününde resmi stable release'i doğrula. | test_phase130_official_tauri_reference_is_version_checked_without_claiming_lock_or_build |
-| REQ-V51-001-011 | 1 | P1 | NOT_TESTED | package-lock/pnpm-lock/uv.lock gibi lockfile üret. |  |
+| REQ-V51-001-011 | 1 | P1 | PASS | package-lock/pnpm-lock/uv.lock gibi lockfile üret. | test_current_source_reports_committed_locks_as_verified |
 | REQ-V51-001-012 | 1 | P1 | PASS | Major upgrade yalnızca migration notes + regression test sonrasında yapılmalı. | test_phase130_official_tauri_reference_is_version_checked_without_claiming_lock_or_build |
 | REQ-V51-001-013 | 1 | P1 | PASS | Experimental/canary paketler production default'u olamaz. | test_canonical_profile_matches_backend_and_frontend_manifests |
 | REQ-V51-001-014 | 1 | P1 | PASS | TradingView Lightweight Charts 5.x veya implementasyon anındaki uyumlu stable major | test_canonical_profile_matches_backend_and_frontend_manifests |
@@ -982,7 +982,7 @@ Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
 | REQ-V51-095-018 | 95 | P0 | PASS | security_opt/capabilities hardening | test_credential_vault_encrypts_and_rejects_withdrawal |
 | REQ-V51-095-019 | 95 | P0 | PASS | uygula. | test_production_container_security_contract_uses_secret_files_nonroot_minimal_images_no_privilege_socket_and_resource_limits |
 | REQ-V51-096-001 | 96 | P0 | NOT_TESTED | Bölüm 96 (SUPPLY CHAIN / DEPENDENCY SECURITY) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama. |  |
-| REQ-V51-096-002 | 96 | P0 | NOT_TESTED | lock file kullan |  |
+| REQ-V51-096-002 | 96 | P0 | PASS | lock file kullan | test_current_source_reports_committed_locks_as_verified |
 | REQ-V51-096-003 | 96 | P0 | PASS | direct dependencies pin'le | test_python_and_frontend_direct_dependencies_are_exactly_pinned |
 | REQ-V51-096-004 | 96 | P0 | PASS | Docker base image'i version/digest ile sabitle | test_third_party_notices_exists_and_docker_build_base_images_are_digest_pinned |
 | REQ-V51-096-005 | 96 | P0 | NOT_TESTED | vulnerability scan yap |  |
@@ -996,7 +996,7 @@ Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
 | REQ-V51-096-013 | 96 | P0 | NOT_TESTED | Bandit/Semgrep |  |
 | REQ-V51-096-014 | 96 | P0 | PASS | CycloneDX veya SPDX | test_local_sbom_is_cyclonedx_1_6_but_remains_direct_only |
 | REQ-V51-096-015 | 96 | P0 | PASS | THIRD_PARTY_NOTICES.md oluştur. | test_third_party_notices_exists_and_docker_build_base_images_are_digest_pinned |
-| REQ-V51-097-001 | 97 | P0 | NOT_TESTED | Bölüm 97 (CI/CD / RELEASE GATES) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama. |  |
+| REQ-V51-097-001 | 97 | P0 | PASS | Bölüm 97 (CI/CD / RELEASE GATES) hükümlerini canonical profile ve v5.1 precedence kurallarıyla uygulama. | test_phase59_ci_build_evidence_has_lock_test_scan_sbom_and_provenance_chain |
 | REQ-V51-097-002 | 97 | P0 | PASS | GitHub Actions veya eşdeğer CI oluştur. | test_ci_workflow_is_fail_closed_and_covers_backend_frontend_docker_and_release_gate |
 | REQ-V51-097-003 | 97 | P0 | PASS | formatting | test_ci_workflow_is_fail_closed_and_covers_backend_frontend_docker_and_release_gate |
 | REQ-V51-097-004 | 97 | P0 | PASS | ruff | test_ci_workflow_is_fail_closed_and_covers_backend_frontend_docker_and_release_gate |
@@ -1013,7 +1013,7 @@ Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
 | REQ-V51-097-015 | 97 | P0 | PASS | immutable version/tag | test_local_git_provenance_has_real_clean_commit_and_immutable_tag |
 | REQ-V51-097-016 | 97 | P0 | PASS | git SHA | test_local_git_provenance_has_real_clean_commit_and_immutable_tag |
 | REQ-V51-097-017 | 97 | P0 | PASS | build timestamp | test_phase23_release_identity_requires_real_provenance_for_production_and_manifest_has_timestamp |
-| REQ-V51-097-018 | 97 | P0 | NOT_TESTED | dependency lock hash |  |
+| REQ-V51-097-018 | 97 | P0 | PASS | dependency lock hash | test_provenance_capture_hashes_real_build_inputs |
 | REQ-V51-097-019 | 97 | P0 | PASS | SBOM | test_local_sbom_is_explicitly_unresolved_and_never_claims_supply_chain_acceptance |
 | REQ-V51-097-020 | 97 | P0 | PASS | checksums | test_release_packaging_contract_is_content_addressed_and_writes_checksum_file |
 | REQ-V51-097-021 | 97 | P0 | PASS | FAILED CI ile LIVE deploy yasak. | test_ci_workflow_is_fail_closed_and_covers_backend_frontend_docker_and_release_gate |
@@ -2653,7 +2653,7 @@ Status counts: `{'NOT_TESTED': 100, 'PASS': 2591}`
 | REQ-V51-189-004 | 189 | P0 | PASS | source tree hash | test_release_manifest_is_fail_closed_and_matches_local_acceptance_identity |
 | REQ-V51-189-005 | 189 | P0 | NOT_TESTED | CI run id |  |
 | REQ-V51-189-006 | 189 | P0 | PASS | build timestamp | test_release_manifest_is_fail_closed_and_matches_local_acceptance_identity |
-| REQ-V51-189-007 | 189 | P0 | NOT_TESTED | dependency lock hash |  |
+| REQ-V51-189-007 | 189 | P0 | PASS | dependency lock hash | test_provenance_capture_hashes_real_build_inputs |
 | REQ-V51-189-008 | 189 | P0 | NOT_TESTED | SBOM hash |  |
 | REQ-V51-189-009 | 189 | P0 | NOT_TESTED | container digest |  |
 | REQ-V51-189-010 | 189 | P0 | NOT_TESTED | frontend artifact hash |  |

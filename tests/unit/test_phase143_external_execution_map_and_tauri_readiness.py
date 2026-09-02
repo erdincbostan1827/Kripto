@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 from scripts.external.execution_map import build
 from scripts.external.tauri_build_readiness import evaluate
 
@@ -9,10 +11,12 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_phase143_all_open_requirements_have_non_ambiguous_external_execution_profile():
     payload = build()
     assert payload['classification'] == 'EXTERNAL_ACCEPTANCE_EXECUTION_MAP_NOT_ACCEPTANCE_EVIDENCE'
-    assert payload['open_requirement_count'] == 100
-    assert payload['mapped_requirement_count'] == 100
+    matrix = yaml.safe_load((ROOT / 'requirements_acceptance_matrix.yaml').read_text(encoding='utf-8'))
+    open_count = sum(row['status'] == 'NOT_TESTED' for row in matrix['requirements'])
+    assert payload['open_requirement_count'] == open_count
+    assert payload['mapped_requirement_count'] == open_count
     assert payload['unmapped_requirement_count'] == 0
-    assert len(payload['requirements']) == 100
+    assert len(payload['requirements']) == open_count
     assert all(row['profile'] not in {'manual_review','LOCAL_OR_AMBIGUOUS'} for row in payload['requirements'])
     ids = {row['requirement_id']: row for row in payload['requirements']}
     assert ids['REQ-V51-099-001']['profile'] == 'restart-drills'
