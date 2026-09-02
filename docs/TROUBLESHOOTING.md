@@ -7,7 +7,7 @@ PROD'da DB, Redis, exchange/clock veya diğer kritik probe'lar hazır değilse y
 Aynı intent'i körlemesine yeniden göndermeyin. Exchange query/private stream ve reconciliation ile gerçek order state'ini belirleyin. Aynı symbol/account yeni riskini bloke edin.
 
 ## Frontend build
-Bu local acceptance snapshot'ında `frontend/package-lock.json` yoktur; registry dependency graph erişilemediği için resolved production build `NOT_TESTED` durumundadır. Lockfile olmadan release gate bilerek bloklanır.
+`frontend/package-lock.json` ve `uv.lock` kaynakta commitlidir ve kabul edilen candidate revizyonuyla eşleşmelidir. Phase 217 local candidate üzerinde kilitli frontend test/build doğrulandı. Bununla birlikte canonical browser acceptance her candidate için yeniden `npm ci` çalıştırır; registry/DNS erişimi yoksa veya npm yarım bir `node_modules` ağacı bırakırsa koşu fail-closed BLOCKED olur ve yarım dependency ağacı temizlenir. Gerçek Chromium viewport matrisi ayrıca PASS olmalıdır.
 
 ## Docker/PostgreSQL/Redis
 Bu çalışma ortamında Docker daemon acceptance çalıştırılmadı. Compose tanımı ve offline Alembic SQL mevcut olsa da gerçek migration/Redis failure/PITR restore sonucu `NOT_TESTED` olarak değerlendirilmelidir.

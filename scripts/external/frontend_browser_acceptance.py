@@ -81,9 +81,26 @@ def run(*, timeout: int = 300, confirm_real: bool = False) -> dict:
             blockers.append("CHROMIUM_VERSION_NOT_VERIFIED")
 
     # npm ci is mandatory: never silently use an unbound node_modules tree.
-    ci = _run(["npm", "ci", "--ignore-scripts"], cwd=FRONTEND, timeout=timeout) if (confirm_real and lock.is_file()) else {"status":"BLOCKED","blocker":"REAL_TARGET_NOT_EXPLICITLY_CONFIRMED" if not confirm_real else "FRONTEND_LOCK_MISSING"}
+    # Keep dependency resolution bounded and deterministic on degraded/offline runners:
+    # - no audit/fund network side channels
+    # - no retry storm when DNS/registry access is unavailable
+    # - a finite fetch timeout while still permitting real registry access when available
+    npm_ci_command = [
+        "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund",
+        "--prefer-offline", "--fetch-retries=0", "--fetch-timeout=15000",
+    ]
+    ci = _run(npm_ci_command, cwd=FRONTEND, timeout=timeout) if (confirm_real and lock.is_file()) else {"status":"BLOCKED","blocker":"REAL_TARGET_NOT_EXPLICITLY_CONFIRMED" if not confirm_real else "FRONTEND_LOCK_MISSING"}
+    if ci.get("status") != "PASS":
+        # npm can leave a partially populated dependency tree when it is interrupted or
+        # registry access fails. Remove it so later manual commands cannot accidentally
+        # treat incomplete dependencies as accepted evidence.
+        partial_tree = FRONTEND / "node_modules"
+        removed_partial_tree = partial_tree.exists()
+        if removed_partial_tree:
+            shutil.rmtree(partial_tree, ignore_errors=True)
+        ci["partial_node_modules_removed"] = removed_partial_tree and not partial_tree.exists()
+        blockers.append(str(ci.get("blocker") or "NPM_CI_FAILED"))
     evidence["npm_ci"] = ci
-    if ci.get("status") != "PASS": blockers.append(str(ci.get("blocker") or "NPM_CI_FAILED"))
 
     unit = _run(["npm", "test", "--", "--run"], cwd=FRONTEND, timeout=timeout) if ci.get("status") == "PASS" else {"status":"BLOCKED","blocker":"NPM_CI_NOT_PASS"}
     evidence["vitest"] = unit

@@ -82,7 +82,7 @@ PAPER supports modeled spread, fees, slippage, latency, partial entry and stop/T
 ## Frontend
 The React/TypeScript shell exposes the eight primary product areas: Dashboard, Market/Scanner, Analysis, Positions & Orders, Alerts, Backtest & Research, Performance & Risk, Settings/System. LIVE is labeled explicitly as `GERÇEK PARA`. It includes compatibility gating, auth/session/CSRF flow and first-run/MFA management source.
 
-`frontend/package-lock.json` could not be resolved in this environment because the registry dependency graph was unavailable. Therefore resolved `npm ci`, project typecheck, Vite production build, Vitest and Playwright remain **NOT_TESTED**. Source syntax PASS is not browser acceptance PASS.
+Reproducible frontend dependencies are committed in `frontend/package-lock.json`. The Phase 217 local candidate verified lock-bound dependency installation, Vitest and the TypeScript/Vite production build. A browser acceptance claim is still separate: the canonical runner must complete a fresh `npm ci` and render every required viewport in real Chromium for the exact candidate revision. Registry/DNS failure or an incomplete dependency tree remains fail-closed and cannot be promoted from source/build evidence alone.
 
 ## Security
 Implemented/local-tested: Argon2id, RBAC, opaque sessions, HttpOnly/Secure/SameSite cookies in PROD, CSRF, login throttling, TOTP MFA, encrypted MFA/exchange secrets, hashed one-use recovery/reset tokens, session revocation, CORS/TrustedHost, HSTS/CSP/security headers, tamper-evident audit, secret provider abstraction, local secret scan and LIVE high-risk confirmation.
@@ -146,7 +146,7 @@ Until these gates are satisfied, **LIVE remains disabled and PROD LIVE release r
 `.env.example` yalnız şema/örnek değerler içindir. Gerçek secret değerleri `.env`, Git veya Docker image içine gömülmemelidir. İlk kurulum sihirbazı adımları sıralı ve restart-safe saklanır; secret alanları wizard snapshot'ına yazılmaz. Son preflight geçmeden kurulum tamamlanmaz ve ilk çalışma modu her durumda **PAPER** olur.
 
 ### Mobil / PWA / masaüstü kullanımı
-Arayüz responsive web uygulaması olarak masaüstü ve mobil tarayıcıdan kullanılacak şekilde tasarlanmıştır. Bu snapshot'ta bağımsız native masaüstü istemcisi veya doğrulanmış installable PWA paketi yoktur. Bu nedenle native/PWA kurulumu destekleniyor gibi gösterilmez; resolved frontend build/E2E tamamlanana kadar mobil browser acceptance da NOT_TESTED kabul edilir.
+Arayüz responsive web uygulaması olarak masaüstü ve mobil tarayıcıdan kullanılacak şekilde tasarlanmıştır. Bu snapshot'ta bağımsız native masaüstü istemcisi veya doğrulanmış installable PWA paketi yoktur. Kilitli frontend build'i yerel olarak doğrulanmış olsa da mobil/masaüstü browser acceptance, exact-candidate `npm ci` ve gerçek Chromium viewport matrisi tamamlanmadan PASS sayılmaz.
 
 ### Kullanıcı dostu hata / uyarı sözlüğü
 - **Yeni işlemler durduruldu — piyasa verisi sağlıklı veya yeterince güncel değil:** veri freshness/health kapısı geçmedi; yeni risk açmayın.
