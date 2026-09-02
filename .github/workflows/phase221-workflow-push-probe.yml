@@ -1,4 +1,4 @@
-name: Phase 221 Workflow Push Permission Probe
+name: Phase 221 Workflow Tag Push Permission Probe
 
 on:
   push:
@@ -9,24 +9,22 @@ permissions:
   contents: write
 
 jobs:
-  workflow-push-probe:
+  workflow-tag-push-probe:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Create, push, and delete workflow-bearing temp branch
+      - name: Create workflow-bearing commit and push via temporary tag
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           REPO="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          WORK="$RUNNER_TEMP/phase221-probe"
+          WORK="$RUNNER_TEMP/phase221-tag-probe"
           git clone --no-tags "$REPO" "$WORK"
           cd "$WORK"
           git config user.name "phase221-permission-probe"
           git config user.email "phase221-probe@users.noreply.github.com"
-          BRANCH="phase221-workflow-push-probe-${GITHUB_RUN_ID}"
-          git switch -c "$BRANCH"
           cat > .github/workflows/phase221-nested-probe.yml <<'YAML'
           name: Phase 221 Nested Probe
           on:
@@ -38,8 +36,10 @@ jobs:
                 - run: echo nested-probe
           YAML
           git add .github/workflows/phase221-nested-probe.yml
-          git commit -m "Phase 221 probe workflow-bearing git push"
-          git push origin "HEAD:refs/heads/$BRANCH"
-          git ls-remote --exit-code --heads origin "$BRANCH"
-          git push origin ":refs/heads/$BRANCH"
-          echo "PHASE221_WORKFLOW_FILE_GIT_PUSH_PERMISSION=PASS"
+          git commit -m "Phase 221 probe workflow-bearing tag push"
+          TAG="phase221-workflow-tag-probe-${GITHUB_RUN_ID}"
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG:refs/tags/$TAG"
+          git ls-remote --exit-code --tags origin "$TAG"
+          git push origin ":refs/tags/$TAG"
+          echo "PHASE221_WORKFLOW_FILE_TAG_PUSH_PERMISSION=PASS"
