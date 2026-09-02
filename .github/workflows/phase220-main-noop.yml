@@ -1,4 +1,4 @@
-name: Phase 220 Main Bootstrap Runner Check
+name: Phase 221 External Environment Preflight
 
 on:
   push:
@@ -10,11 +10,59 @@ permissions:
   contents: read
 
 jobs:
-  runner-check:
+  external-preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Confirm GitHub-hosted runner
+      - name: Runner and network preflight
+        shell: bash
         run: |
-          echo "phase220-main-runner=ok"
+          set -euo pipefail
+          echo "PHASE221_RUNNER=github-hosted"
           uname -a
           git --version
+          docker --version
+          docker compose version
+          getent hosts github.com
+          getent hosts registry.npmjs.org
+          getent hosts pypi.org
+          curl --fail --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -I https://registry.npmjs.org/
+          curl --fail --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -I https://pypi.org/simple/
+          npm ping --registry=https://registry.npmjs.org/
+      - name: Real Docker engine acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker info
+          docker run --rm hello-world
+      - name: PostgreSQL container readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull postgres:18
+          docker run -d --rm --name phase221-postgres -e POSTGRES_PASSWORD=phase221 -p 55432:5432 postgres:18
+          for i in {1..60}; do
+            if docker exec phase221-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          docker logs phase221-postgres
+          exit 1
+      - name: Redis container readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull redis:8
+          docker run -d --rm --name phase221-redis -p 56379:6379 redis:8
+          for i in {1..60}; do
+            if docker exec phase221-redis redis-cli ping | grep -q PONG; then exit 0; fi
+            sleep 2
+          done
+          docker logs phase221-redis
+          exit 1
+      - name: Browser availability probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          (google-chrome --version || chromium --version || chromium-browser --version || true)
+          node --version
+          npm --version
