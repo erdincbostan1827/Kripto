@@ -14,11 +14,15 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e '.[test]' 'ruff==0.12.11' 'mypy==1.17.1' pip-audit
       - name: Compile
+        id: compile
+        continue-on-error: true
         run: |
           mkdir -p reports
           set -o pipefail
           python -m compileall -q backend scripts tests 2>&1 | tee reports/COMPILEALL.txt
       - name: Ruff critical lint
+        id: ruff
+        continue-on-error: true
         run: |
           set -o pipefail
           ruff check --target-version py312 --select E9,F63,F7,F82 backend tests scripts 2>&1 | tee reports/RUFF_CRITICAL.txt
@@ -29,33 +33,71 @@ jobs:
           set -o pipefail
           ruff check --target-version py312 --select E4,E7,E9,F backend tests scripts 2>&1 | tee reports/RUFF_DEBT.txt
       - name: Mypy
+        id: mypy
+        continue-on-error: true
         env:
           MYPYPATH: backend
         run: |
           set -o pipefail
           mypy --explicit-package-bases backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
       - name: Pytest
+        id: pytest
+        continue-on-error: true
         run: |
           set -o pipefail
           pytest -q -W error --junitxml=reports/pytest.xml 2>&1 | tee reports/PYTEST.txt
       - name: Prohibited marker scan
+        id: prohibited
+        continue-on-error: true
         run: |
           set -o pipefail
           python scripts/prohibited_scan.py 2>&1 | tee reports/PROHIBITED_SCAN_CI.txt
       - name: Secret scan
+        id: secret
+        continue-on-error: true
         run: |
           set -o pipefail
           python scripts/secret_scan.py 2>&1 | tee reports/SECRET_SCAN_CI.txt
       - name: Local SAST
+        id: sast
+        continue-on-error: true
         run: |
           set -o pipefail
           python scripts/local_sast.py 2>&1 | tee reports/LOCAL_SAST_CI.txt
       - name: Alembic offline SQL
+        id: alembic
+        continue-on-error: true
         run: alembic upgrade head --sql > reports/ALEMBIC_OFFLINE_SQL.txt
       - name: Dependency audit
+        id: audit
+        continue-on-error: true
         run: |
           set -o pipefail
           pip-audit 2>&1 | tee reports/PIP_AUDIT.txt
+      - name: Write backend gate summary
+        if: always()
+        env:
+          COMPILE: ${{ steps.compile.outcome }}
+          RUFF: ${{ steps.ruff.outcome }}
+          MYPY: ${{ steps.mypy.outcome }}
+          PYTEST: ${{ steps.pytest.outcome }}
+          PROHIBITED: ${{ steps.prohibited.outcome }}
+          SECRET: ${{ steps.secret.outcome }}
+          SAST: ${{ steps.sast.outcome }}
+          ALEMBIC: ${{ steps.alembic.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+        run: |
+          {
+            echo "compile=$COMPILE"
+            echo "ruff=$RUFF"
+            echo "mypy=$MYPY"
+            echo "pytest=$PYTEST"
+            echo "prohibited=$PROHIBITED"
+            echo "secret=$SECRET"
+            echo "sast=$SAST"
+            echo "alembic=$ALEMBIC"
+            echo "audit=$AUDIT"
+          } | tee reports/BACKEND_GATE_SUMMARY.txt
       - name: Upload backend diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -63,6 +105,28 @@ jobs:
           name: backend-diagnostics-${{ github.run_id }}
           path: reports/
           if-no-files-found: ignore
+      - name: Enforce backend quality gate
+        if: always()
+        env:
+          COMPILE: ${{ steps.compile.outcome }}
+          RUFF: ${{ steps.ruff.outcome }}
+          MYPY: ${{ steps.mypy.outcome }}
+          PYTEST: ${{ steps.pytest.outcome }}
+          PROHIBITED: ${{ steps.prohibited.outcome }}
+          SECRET: ${{ steps.secret.outcome }}
+          SAST: ${{ steps.sast.outcome }}
+          ALEMBIC: ${{ steps.alembic.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+        run: |
+          failed=0
+          for result in "$COMPILE" "$RUFF" "$MYPY" "$PYTEST" "$PROHIBITED" "$SECRET" "$SAST" "$ALEMBIC" "$AUDIT"; do
+            if [ "$result" != "success" ]; then failed=1; fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "BACKEND_QUALITY_GATE=FAIL"
+            exit 1
+          fi
+          echo "BACKEND_QUALITY_GATE=PASS"
   frontend:
     runs-on: ubuntu-latest
     steps:
