@@ -8,9 +8,17 @@ sys.path.insert(0, str(ROOT/'scripts'))
 from validate_acceptance_ref import validate
 
 def test_current_annotated_tag_is_accepted(monkeypatch):
-    monkeypatch.chdir(ROOT)
-    tag = subprocess.check_output(['git','tag','--points-at','HEAD'], text=True).splitlines()[0]
-    d=validate(tag)
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        subprocess.run(['git', 'init', '-q'], cwd=repo, check=True)
+        subprocess.run(['git', 'config', 'user.name', 'Acceptance Test'], cwd=repo, check=True)
+        subprocess.run(['git', 'config', 'user.email', 'acceptance-test@example.invalid'], cwd=repo, check=True)
+        (repo / 'candidate.txt').write_text('candidate\n', encoding='utf-8')
+        subprocess.run(['git', 'add', 'candidate.txt'], cwd=repo, check=True)
+        subprocess.run(['git', 'commit', '-q', '-m', 'candidate'], cwd=repo, check=True)
+        subprocess.run(['git', 'tag', '-a', 'acceptance-test', '-m', 'acceptance candidate'], cwd=repo, check=True)
+        monkeypatch.chdir(repo)
+        d=validate('acceptance-test')
     assert d['status']=='PASS' and d['kind']=='ANNOTATED_TAG'
 
 def test_branch_is_rejected(monkeypatch):
