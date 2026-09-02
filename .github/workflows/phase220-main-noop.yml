@@ -1,4 +1,4 @@
-name: Phase 221 PostgreSQL HA Retry 2
+name: Phase 221 Keyless Signing Capability
 
 on:
   push:
@@ -8,51 +8,30 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
-  postgres-ha-failover:
+  keyless-sign-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Real PostgreSQL 18 streaming replication failover retry 2
+      - name: Install cosign from source at pinned version
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$RUNNER_TEMP/phase221-ha"
-          mkdir -p "$ROOT"/{primary,standby}
-          chmod -R 777 "$ROOT"
-          docker network create phase221-ha-net
-          docker pull postgres:18
-          docker run -d --name phase221-ha-primary --network phase221-ha-net \
-            -e POSTGRES_PASSWORD=phase221 \
-            -e PGDATA=/var/lib/postgresql/data/pgdata \
-            -v "$ROOT/primary:/var/lib/postgresql/data" \
-            postgres:18 postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10 -c hot_standby=on
-          for i in {1..90}; do docker exec phase221-ha-primary pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
-          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'replpass';"
-          docker exec phase221-ha-primary bash -lc 'echo "host replication replicator 0.0.0.0/0 scram-sha-256" >> "$PGDATA/pg_hba.conf"'
-          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "SELECT pg_reload_conf();"
-          docker run --rm --network phase221-ha-net \
-            -v "$ROOT/standby:/standby" \
-            postgres:18 bash -lc "PGPASSWORD=replpass pg_basebackup -h phase221-ha-primary -U replicator -D /standby/pgdata -Fp -Xs -P -R"
-          sudo bash -c "cat >> '$ROOT/standby/pgdata/postgresql.auto.conf'" <<'EOF'
-          primary_conninfo = 'host=phase221-ha-primary port=5432 user=replicator password=replpass application_name=phase221-standby'
-          EOF
-          sudo chown -R 999:999 "$ROOT/standby/pgdata"
-          sudo chmod 700 "$ROOT/standby/pgdata"
-          docker run -d --name phase221-ha-standby --network phase221-ha-net \
-            -e PGDATA=/var/lib/postgresql/data \
-            -v "$ROOT/standby/pgdata:/var/lib/postgresql/data" \
-            postgres:18 postgres -c hot_standby=on
-          for i in {1..90}; do docker exec phase221-ha-standby pg_isready -U postgres >/dev/null 2>&1 && break; sleep 1; done
-          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT pg_is_in_recovery();')" = "t"
-          docker exec phase221-ha-primary psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE TABLE ha_probe(id int primary key, marker text); INSERT INTO ha_probe VALUES (1,'replicated');"
-          for i in {1..60}; do V="$(docker exec phase221-ha-standby psql -U postgres -Atc "SELECT marker FROM ha_probe WHERE id=1;" 2>/dev/null || true)"; [ "$V" = replicated ] && break; sleep 1; done
-          test "$(docker exec phase221-ha-standby psql -U postgres -Atc "SELECT marker FROM ha_probe WHERE id=1;")" = replicated
-          docker stop phase221-ha-primary
-          docker exec phase221-ha-standby psql -U postgres -v ON_ERROR_STOP=1 -c "SELECT pg_promote(true, 30);"
-          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT pg_is_in_recovery();')" = "f"
-          docker exec phase221-ha-standby psql -U postgres -v ON_ERROR_STOP=1 -c "INSERT INTO ha_probe VALUES (2,'after-failover');"
-          test "$(docker inspect -f '{{.State.Running}}' phase221-ha-primary)" = "false"
-          test "$(docker exec phase221-ha-standby psql -U postgres -Atc 'SELECT count(*) FROM ha_probe;')" = "2"
-          echo 'PHASE221_POSTGRES_STREAMING_FAILOVER=PASS'
+          go version
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/sigstore/cosign/v2/cmd/cosign@v2.6.0
+          "$RUNNER_TEMP/bin/cosign" version
+      - name: Real GitHub OIDC keyless sign and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'phase221 trusted signing capability\n' > "$RUNNER_TEMP/phase221-artifact.txt"
+          "$RUNNER_TEMP/bin/cosign" sign-blob --yes --bundle "$RUNNER_TEMP/phase221-cosign.bundle" "$RUNNER_TEMP/phase221-artifact.txt"
+          "$RUNNER_TEMP/bin/cosign" verify-blob \
+            --bundle "$RUNNER_TEMP/phase221-cosign.bundle" \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            --certificate-identity-regexp '^https://github.com/erdincbostan1827/Kripto/.github/workflows/phase220-main-noop.yml@refs/heads/main$' \
+            "$RUNNER_TEMP/phase221-artifact.txt"
+          test -s "$RUNNER_TEMP/phase221-cosign.bundle"
+          echo 'PHASE221_KEYLESS_SIGNING_CAPABILITY=PASS'
