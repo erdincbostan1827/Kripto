@@ -4,12 +4,20 @@ import os
 import sys
 import time
 import urllib.request
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from app.monitoring.watchdog import HeartbeatSigner
 
 
+def validate_http_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("watchdog URLs must use HTTP(S) and include a hostname")
+    return url
+
+
 def fetch_json(url: str, timeout: float = 4.0) -> dict:
-    with urllib.request.urlopen(url, timeout=timeout) as response:
+    with urllib.request.urlopen(validate_http_url(url), timeout=timeout) as response:  # nosec B310
         body = response.read().decode("utf-8")
         return json.loads(body)
 
@@ -18,9 +26,9 @@ def emit_alert(message: str) -> None:
     webhook = os.getenv("CRITICAL_FALLBACK_WEBHOOK", "").strip()
     payload = json.dumps({"severity": "SEV1", "message": message, "at": datetime.now(timezone.utc).isoformat()}).encode()
     if webhook:
-        request = urllib.request.Request(webhook, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        request = urllib.request.Request(validate_http_url(webhook), data=payload, headers={"Content-Type": "application/json"}, method="POST")
         try:
-            urllib.request.urlopen(request, timeout=5).read()
+            urllib.request.urlopen(request, timeout=5).read()  # nosec B310
             return
         except Exception as exc:
             print(f"WATCHDOG_ALERT_DELIVERY_FAILED:{type(exc).__name__}", file=sys.stderr)

@@ -33,7 +33,8 @@ def bootstrap_environment() -> None:
 def main() -> None:
     bootstrap_environment()
     from uvicorn import run
-    run("app.main:app", app_dir="/app/backend", host="0.0.0.0", port=8000, proxy_headers=True, forwarded_allow_ips="127.0.0.1")
+    # The container must listen on every interface so its published port is reachable.
+    run("app.main:app", app_dir="/app/backend", host="0.0.0.0", port=8000, proxy_headers=True, forwarded_allow_ips="127.0.0.1")  # nosec B104
 
 if __name__ == "__main__":
     main()
