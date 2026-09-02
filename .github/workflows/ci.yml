@@ -39,7 +39,7 @@ jobs:
           MYPYPATH: backend
         run: |
           set -o pipefail
-          mypy --explicit-package-bases backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
+          mypy -p app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
       - name: Pytest
         id: pytest
         continue-on-error: true
