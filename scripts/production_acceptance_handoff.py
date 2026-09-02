@@ -8,14 +8,17 @@ from pathlib import Path
 try:
     from scripts.verify_source_locks import verify_source_locks
     from scripts.verify_source_package_identity import verify_source_package_identity
+    from scripts.bounded_subprocess import run_captured_split
 except ModuleNotFoundError:  # direct `python scripts/production_acceptance_handoff.py`
     from verify_source_locks import verify_source_locks
     from verify_source_package_identity import verify_source_package_identity
+    from bounded_subprocess import run_captured_split
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'reports' / 'PRODUCTION_ACCEPTANCE_HANDOFF.json'
 WORKFLOW = '.github/workflows/production-acceptance.yml'
 REQUIRED_ENVIRONMENT_VARS = ['ACCEPTANCE_ENVIRONMENT_ID', 'ACCEPTANCE_TOPOLOGY_HASH']
+GIT_PROBE_TIMEOUT_SECONDS = 10
 REQUIRED_SECRETS = [
     'BINANCE_TESTNET_API_KEY', 'BINANCE_TESTNET_API_SECRET',
     'PITR_DRILL_COMMAND', 'PITR_EVIDENCE_JSON',
@@ -28,7 +31,11 @@ REQUIRED_SECRETS = [
 
 
 def git(*args: str, root: Path = ROOT) -> str:
-    return subprocess.check_output(['git', *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+    proc = run_captured_split(['git', *args], cwd=root, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    value = (proc.stdout or '').strip()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, ['git', *args], output=proc.stdout, stderr=proc.stderr)
+    return value
 
 
 def _candidate_identity(root: Path) -> tuple[str | None, list[str], str, bool]:
@@ -37,7 +44,7 @@ def _candidate_identity(root: Path) -> tuple[str | None, list[str], str, bool]:
         tags = [x for x in git('tag', '--points-at', 'HEAD', root=root).splitlines() if x]
         if len(sha) == 40:
             return sha, tags, 'GIT_HEAD', True
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError):
         pass
     package = verify_source_package_identity(root, verify_all_files=True, verify_inventory=True)
     if package.get('verified') and package.get('git_commit_sha'):

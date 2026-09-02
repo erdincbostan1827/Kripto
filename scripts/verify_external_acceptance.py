@@ -12,11 +12,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 REPORTS = ROOT / "reports" / "external_acceptance"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 from backend.app.release.acceptance_challenge import verify_challenge
 from backend.app.release.evidence_ledger import verify_ledger
 from backend.app.release.acceptance_contract import GROUP_KEYS, DEFAULT_GROUP_TTL_HOURS, PROFILE_ORDER, PROFILE_TO_GROUPS, command_contract, command_contract_sha256
+from scripts.bounded_subprocess import run_captured_split
 # centralized in backend.app.release.acceptance_contract
+def _git_sha(root: Path) -> str:
+    try:
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=root, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
+        return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
+
+
 def _sha(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
@@ -236,11 +247,9 @@ def verify_manifest(path: Path, *, root: Path = ROOT, max_age_hours: int = 168, 
         elif challenge_doc.get("sha256") != current_challenge.get("sha256"):
             problems.append("RELEASE_CHALLENGE_HASH_MISMATCH")
 
-    expected_git = None
-    try:
-        expected_git = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
-        pass
+    expected_git = _git_sha(root)
+    if any_declared_group_pass and expected_git == "UNAVAILABLE":
+        problems.append("GIT_IDENTITY_UNAVAILABLE")
     environment = payload.get("environment") if isinstance(payload.get("environment"), dict) else {}
     any_declared_pass = any((payload.get("groups") or {}).get(g) == "PASS" for g in GROUP_KEYS)
     if any_declared_pass:
@@ -251,7 +260,7 @@ def verify_manifest(path: Path, *, root: Path = ROOT, max_age_hours: int = 168, 
         if not isinstance(topology_hash, str) or len(topology_hash) != 64:
             problems.append("ACCEPTANCE_TOPOLOGY_HASH_MISSING")
     evidence_git = environment.get("git_commit_sha")
-    if expected_git and evidence_git != expected_git:
+    if expected_git != "UNAVAILABLE" and evidence_git != expected_git:
         problems.append("GIT_COMMIT_MISMATCH")
 
     generated = _parse_time(payload.get("generated_at"))

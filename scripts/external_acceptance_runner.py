@@ -19,12 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 REPORTS = ROOT / "reports" / "external_acceptance"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 from backend.app.release.acceptance_challenge import verify_challenge
 from backend.app.release.acceptance_contract import RUNNER_GROUP_KEYS, build_plan, command_contract, command_contract_sha256
 from backend.app.release.evidence_ledger import append_entry
 from scripts.acceptance_diagnostics import classify_blocker, redact_text
-from scripts.bounded_subprocess import run_captured
+from scripts.bounded_subprocess import run_captured, run_captured_split
 
 
 @dataclass(frozen=True)
@@ -98,13 +99,17 @@ def _credential_guard() -> tuple[bool, str]:
     return (not missing, "PRESENT_REDACTED" if not missing else "MISSING:" + ",".join(missing))
 
 
-def _environment() -> dict:
-    git_sha = "UNAVAILABLE"
+def _git_sha() -> str:
     try:
-        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
-                                          stderr=subprocess.DEVNULL).strip()
-    except Exception:
-        pass
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
+        return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
+
+
+def _environment() -> dict:
+    git_sha = _git_sha()
     env_id = os.getenv("ACCEPTANCE_ENVIRONMENT_ID", "")
     topology_hash = os.getenv("ACCEPTANCE_TOPOLOGY_HASH", "")
     return {
@@ -198,6 +203,8 @@ def execute(profile: str, *, confirm_real: bool, timeout: int) -> dict:
     if confirm_real:
         env_identity = _environment()
         missing_identity = []
+        if env_identity.get("git_commit_sha") == "UNAVAILABLE":
+            missing_identity.append("GIT_COMMIT_SHA")
         if not env_identity.get("acceptance_environment_id_hash"):
             missing_identity.append("ACCEPTANCE_ENVIRONMENT_ID")
         if not env_identity.get("topology_hash"):

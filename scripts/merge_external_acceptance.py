@@ -13,12 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 REPORTS = ROOT / "reports" / "external_acceptance"
+GIT_PROBE_TIMEOUT_SECONDS = 10
 
 from backend.app.release.acceptance_challenge import verify_challenge
 from backend.app.release.evidence_ledger import append_entry
 from backend.app.release.acceptance_contract import PROFILE_TO_GROUPS
 from scripts.verify_external_acceptance import GROUP_KEYS, verify_manifest
 from scripts.external_acceptance_runner import command_contract_sha256
+from scripts.bounded_subprocess import run_captured_split
 
 
 def _sha(path: Path) -> str:
@@ -27,9 +29,11 @@ def _sha(path: Path) -> str:
 
 def _git_sha(root: Path) -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
-    except Exception:
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=root, timeout=GIT_PROBE_TIMEOUT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
         return "UNAVAILABLE"
+    value = (proc.stdout or "").strip()
+    return value if proc.returncode == 0 and value else "UNAVAILABLE"
 
 
 def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
@@ -40,6 +44,8 @@ def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
     evidence: list[dict[str, Any]] = []
     sources: dict[str, Any] = {}
     problems: list[str] = []
+    if git_sha == "UNAVAILABLE":
+        problems.append("GIT_IDENTITY_UNAVAILABLE")
     environment_identities: set[tuple[str, str]] = set()
 
     for profile, profile_groups in PROFILE_TO_GROUPS.items():
@@ -112,7 +118,7 @@ def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
         "credentials": {"binance_testnet": "REDACTED_OR_NOT_EVALUATED"},
         "evidence": evidence,
         "groups": groups,
-        "selected_all_pass": all(v == "PASS" for v in groups.values()),
+        "selected_all_pass": git_sha != "UNAVAILABLE" and not problems and all(v == "PASS" for v in groups.values()),
         "source_profiles": sources,
         "merge_problems": problems,
     }
@@ -123,7 +129,7 @@ def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
 
     # Any PASS group makes the aggregate release-relevant. Bind the aggregate itself
     # into the append-only ledger so verify_manifest can detect replacement/replay.
-    if any(v == "PASS" for v in groups.values()) and challenge.get("verified") and challenge.get("trust_verified"):
+    if git_sha != "UNAVAILABLE" and not problems and any(v == "PASS" for v in groups.values()) and challenge.get("verified") and challenge.get("trust_verified"):
         append_entry(
             reports / "evidence_ledger.json",
             manifest_sha256=manifest_sha,
