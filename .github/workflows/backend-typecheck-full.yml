@@ -21,6 +21,7 @@ jobs:
         run: |
           mkdir -p reports
           grep -RInE '(^|[[:space:]])(from|import)[[:space:]]+backend\.app' backend/app > reports/BACKEND_APP_IMPORTS.txt || true
+          tar -czf reports/BACKEND_APP_SOURCE.tgz backend/app
           set -o pipefail
           MYPYPATH=backend mypy --namespace-packages -p app --ignore-missing-imports 2>&1 | tee reports/MYPY_FULL_TREE.txt
       - name: Upload full-tree typecheck evidence
@@ -31,4 +32,5 @@ jobs:
           path: |
             reports/MYPY_FULL_TREE.txt
             reports/BACKEND_APP_IMPORTS.txt
+            reports/BACKEND_APP_SOURCE.tgz
           if-no-files-found: ignore
