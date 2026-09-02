@@ -26,9 +26,10 @@ def test_phase28_preflight_redacts_testnet_credentials(monkeypatch):
     assert env_checks and all(c["detail"] == "PRESENT_REDACTED" for c in env_checks)
 
 
-def test_phase28_missing_source_locks_remain_current_fail_closed_truth_without_historical_reports():
+def test_phase28_committed_source_locks_are_current_preflight_truth_without_promoting_acceptance():
     payload = evaluate()
     lock_checks = {c["key"]: c for c in payload["checks"] if c["key"] in {"file:uv.lock", "file:frontend/package-lock.json"}}
     assert set(lock_checks) == {"file:uv.lock", "file:frontend/package-lock.json"}
-    assert all(c["status"] == "BLOCKED" for c in lock_checks.values())
-    assert payload["groups"]["dependency_locks"] is False
+    assert all(c["status"] == "READY" for c in lock_checks.values())
+    assert payload["groups"]["dependency_locks"] is True
+    assert payload["all_external_prerequisites_ready"] is False

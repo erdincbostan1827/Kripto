@@ -16,7 +16,8 @@ def test_phase176_readiness_covers_every_open_requirement_without_promotion():
 def test_phase176_readiness_has_specific_current_blocker_classes():
     payload = build()
     counts = payload["blocker_class_counts"]
-    assert counts["REGISTRY_OR_LOCK_RESOLUTION"] >= 2
+    assert "REGISTRY_OR_LOCK_RESOLUTION" not in counts
+    assert payload["profiles"]["dependency-locks"]["blocker_classes"] == []
     assert counts["HOST_RUNTIME_CAPABILITY"] >= 1
     assert counts["TRUSTED_CI"] >= 1
     assert counts["REAL_BROWSER_ENVIRONMENT"] >= 1

@@ -30,14 +30,15 @@ def test_phase175_external_requirements_never_become_pass_from_preflight():
     encoded = json.dumps(payload)
     assert "NOT_ACCEPTANCE_EVIDENCE" in encoded
     assert "PASS" not in {row.get("status") for row in payload["requirements"]}
-    assert all(row["blocked"] for row in payload["requirements"])
-    assert payload["blocked_requirement_count"] == payload["open_requirement_count"]
+    ready = [row for row in payload["requirements"] if not row["blocked"]]
+    assert {row["profile"] for row in ready} == {"dependency-locks"}
+    assert payload["blocked_requirement_count"] == payload["open_requirement_count"] - len(ready)
 
 
 def test_phase175_current_environment_exposes_known_hard_blockers():
     payload = build()
     reasons = payload["blocking_reason_counts"]
-    assert reasons["group:dependency_locks"] >= 2
+    assert "group:dependency_locks" not in reasons
     assert reasons["group:container_runtime"] >= 1
     assert reasons["external:real_browser_matrix"] >= 1
     assert reasons["external:trusted_ci_supply_chain_evidence"] >= 1

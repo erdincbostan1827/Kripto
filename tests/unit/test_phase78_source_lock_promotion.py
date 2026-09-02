@@ -30,8 +30,8 @@ def test_all_workflows_stay_immutably_pinned():
     assert result["verified"], result["problems"]
 
 
-def test_current_source_correctly_reports_missing_committed_locks():
+def test_current_source_reports_committed_locks_as_verified():
     result = verify_source_locks(ROOT)
-    assert not result["verified"]
-    assert any(problem.startswith("uv.lock:") for problem in result["problems"])
-    assert any(problem.startswith("frontend/package-lock.json:") for problem in result["problems"])
+    assert result["verified"]
+    assert result["problems"] == []
+    assert all(lock["source_compliant"] for lock in result["locks"])
