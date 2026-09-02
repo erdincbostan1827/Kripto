@@ -3,7 +3,7 @@ on:
   push:
     branches: [phase222-ci-stabilization]
 permissions:
-  contents: read
+  contents: write
 jobs:
   refresh-locks:
     runs-on: ubuntu-latest
@@ -52,6 +52,19 @@ jobs:
             frontend/package-lock.json
             reports/
           if-no-files-found: error
+      - name: Commit verified refreshed locks
+        if: steps.npm_audit.outcome == 'success'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add uv.lock frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'LOCK_REFRESH_COMMIT=NO_CHANGES'
+          else
+            git commit -m 'phase222: refresh dependency locks'
+            git push origin HEAD:phase222-ci-stabilization
+            echo 'LOCK_REFRESH_COMMIT=PUSHED'
+          fi
       - name: Enforce refreshed frontend audit
         if: always()
         env:
