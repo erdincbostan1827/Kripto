@@ -29,9 +29,11 @@ jobs:
           set -o pipefail
           ruff check --target-version py312 --select E4,E7,E9,F backend tests scripts 2>&1 | tee reports/RUFF_DEBT.txt
       - name: Mypy
+        env:
+          MYPYPATH: backend
         run: |
           set -o pipefail
-          mypy --no-namespace-packages backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
+          mypy --explicit-package-bases backend/app --ignore-missing-imports 2>&1 | tee reports/MYPY.txt
       - name: Pytest
         run: |
           set -o pipefail
