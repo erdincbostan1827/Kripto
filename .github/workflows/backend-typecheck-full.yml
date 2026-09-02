@@ -20,6 +20,7 @@ jobs:
       - name: Full backend Mypy gate
         run: |
           mkdir -p reports
+          grep -RInE '(^|[[:space:]])(from|import)[[:space:]]+backend\.app' backend/app > reports/BACKEND_APP_IMPORTS.txt || true
           set -o pipefail
           MYPYPATH=backend mypy --namespace-packages -p app --ignore-missing-imports 2>&1 | tee reports/MYPY_FULL_TREE.txt
       - name: Upload full-tree typecheck evidence
@@ -27,5 +28,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: mypy-full-tree-${{ github.run_id }}
-          path: reports/MYPY_FULL_TREE.txt
+          path: |
+            reports/MYPY_FULL_TREE.txt
+            reports/BACKEND_APP_IMPORTS.txt
           if-no-files-found: ignore
