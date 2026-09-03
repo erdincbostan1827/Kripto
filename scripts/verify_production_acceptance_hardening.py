@@ -12,9 +12,15 @@ EXPECTED_SCANNERS = (
     "'cyclonedx-bom==7.3.1' "
     "'pip-licenses==5.5.5'"
 )
+EXPECTED_RUNTIME_BUILD = (
+    'docker build --file backend/Dockerfile --target runtime '
+    '-t "$ACCEPTANCE_CONTAINER_IMAGE" .'
+)
 REQUIRED_SNIPPETS = (
     'REPOSITORY_LC="${GITHUB_REPOSITORY,,}"',
     'IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"',
+    EXPECTED_RUNTIME_BUILD,
+    'uv export --locked --no-dev --no-emit-project --format requirements-txt',
     'runs-on: [self-hosted, production-acceptance]',
     'environment: production-acceptance',
     'ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"',
@@ -24,6 +30,7 @@ REQUIRED_SNIPPETS = (
 FORBIDDEN_SNIPPETS = (
     "UV_VERSION: '0.10.0'",
     'IMAGE="ghcr.io/${{ github.repository }}/acceptance:${SHA}"',
+    'docker build -t "$ACCEPTANCE_CONTAINER_IMAGE" .',
     'python -m pip install pip-audit bandit semgrep cyclonedx-bom pip-licenses',
 )
 
@@ -52,6 +59,7 @@ def main() -> int:
     print('PRODUCTION_ACCEPTANCE_HARDENING=PASS')
     print('uv_version=0.12.9')
     print('scanner_toolchain=pip-audit==2.10.1,bandit==1.9.4,semgrep==1.175.0,cyclonedx-bom==7.3.1,pip-licenses==5.5.5')
+    print('runtime_image_build=backend/Dockerfile:runtime')
     print('ghcr_identity=lowercase_repository+exact_git_sha')
     print('real_target_boundary=self-hosted+production-acceptance+challenge-trust')
     return 0
