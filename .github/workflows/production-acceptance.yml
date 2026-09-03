@@ -18,7 +18,7 @@ concurrency:
 env:
   PYTHON_VERSION: '3.12'
   NODE_VERSION: '24'
-  UV_VERSION: '0.10.0'
+  UV_VERSION: '0.12.9'
 
 jobs:
   ci-build-evidence:
@@ -45,6 +45,9 @@ jobs:
       - name: Verify immutable GitHub Action pins
         run: python scripts/verify_workflow_action_pins.py
 
+      - name: Verify production acceptance hardening invariants
+        run: python scripts/verify_production_acceptance_hardening.py
+
       - name: Verify production acceptance contract parity
         run: python scripts/verify_acceptance_contract_parity.py
 
@@ -58,7 +61,9 @@ jobs:
           set -euo pipefail
           SHA="$(git rev-parse HEAD)"
           test -n "$SHA"
-          IMAGE="ghcr.io/${{ github.repository }}/acceptance:${SHA}"
+          REPOSITORY_LC="${GITHUB_REPOSITORY,,}"
+          IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"
+          test "$IMAGE" = "${IMAGE,,}"
           echo "source_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "container_image=$IMAGE" >> "$GITHUB_OUTPUT"
           echo "SOURCE_SHA=$SHA" >> "$GITHUB_ENV"
@@ -109,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "$ACCEPTANCE_CONTAINER_IMAGE" .
+          docker build --file backend/Dockerfile --target runtime -t "$ACCEPTANCE_CONTAINER_IMAGE" .
           docker push "$ACCEPTANCE_CONTAINER_IMAGE"
           docker pull "$ACCEPTANCE_CONTAINER_IMAGE"
 
@@ -126,7 +131,7 @@ jobs:
 
       - name: Install supply-chain scanners and capture exact toolchain receipt
         run: |
-          python -m pip install pip-audit bandit semgrep cyclonedx-bom pip-licenses
+          python -m pip install 'pip-audit==2.10.1' 'bandit==1.9.4' 'semgrep==1.175.0' 'cyclonedx-bom==7.3.1' 'pip-licenses==5.5.5'
           python -m pip freeze | sort > reports/CI_SCANNER_VERSIONS.txt
           python scripts/ci_toolchain_receipt.py create
           python scripts/ci_toolchain_receipt.py verify --expected-git-sha "$(git rev-parse HEAD)" --verify-installed
@@ -173,9 +178,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p reports/external_acceptance
-          uv export --locked --no-dev --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
+          uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
           pip-audit -r reports/external_acceptance/requirements.locked.txt
-          bandit -q -r backend scripts
+          set +e
+          bandit -q -r backend scripts -f json -o reports/external_acceptance/bandit-report.json
+          BANDIT_RC=$?
+          set -e
+          if [ "$BANDIT_RC" -gt 1 ]; then
+            echo "Bandit scanner execution failed with rc=$BANDIT_RC" >&2
+            exit "$BANDIT_RC"
+          fi
+          python scripts/external/verify_bandit_baseline.py reports/external_acceptance/bandit-report.json
           semgrep --config auto --error backend scripts
           docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
           docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
@@ -214,6 +227,7 @@ jobs:
             frontend/package-lock.json
             frontend/dist/**
             reports/local_acceptance/**
+            reports/external_acceptance/bandit-report.json
             reports/external_acceptance/sbom.cdx.json
             reports/external_acceptance/dependency_licenses.json
             reports/external_acceptance/supply_chain_artifact_verification.json
@@ -284,7 +298,7 @@ jobs:
           set -euo pipefail
           test -n "$BUILD_ARTIFACT_ID"
           test -n "$BUILD_ARTIFACT_DIGEST"
-          python scripts/ci_artifact_identity.py             --artifact-id "$BUILD_ARTIFACT_ID"             --artifact-digest "$BUILD_ARTIFACT_DIGEST"             --artifact-name "$BUILD_ARTIFACT_NAME"             --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
+          python scripts/ci_artifact_identity.py --artifact-id "$BUILD_ARTIFACT_ID" --artifact-digest "$BUILD_ARTIFACT_DIGEST" --artifact-name "$BUILD_ARTIFACT_NAME" --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
 
       - name: Pull and verify exact immutable acceptance image
         env:
