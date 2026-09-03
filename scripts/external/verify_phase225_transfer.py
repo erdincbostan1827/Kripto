@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.app.release.supply_chain_evidence import verify_supply_chain_artifacts
+from scripts.bounded_subprocess import run_captured_split
 from scripts.external.verify_scanner_image_digests import verify as verify_scanner_image_digests
 
 REPORTS = ROOT / "reports"
@@ -35,7 +35,11 @@ def _json(path: Path) -> dict:
 
 
 def _git_sha() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip().lower()
+    proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=ROOT, timeout=10)
+    value = (proc.stdout or "").strip().lower()
+    if proc.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise RuntimeError("GIT_REV_PARSE_FAILED")
+    return value
 
 
 def verify(expected_sha: str) -> dict:
