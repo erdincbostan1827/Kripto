@@ -2,10 +2,15 @@ from pathlib import Path
 
 
 SCRIPT = Path("tools/run_phase231_production_readiness.ps1")
+WORKFLOW = Path(".github/workflows/production-runner-readiness.yml")
 
 
 def _text() -> str:
     return SCRIPT.read_text(encoding="utf-8")
+
+
+def _workflow_text() -> str:
+    return WORKFLOW.read_text(encoding="utf-8")
 
 
 def test_phase231_orchestrator_is_fail_closed_and_exact_sha_bound() -> None:
@@ -38,3 +43,24 @@ def test_phase231_orchestrator_waits_for_workflow_exit_status() -> None:
     assert "Production Runner Readiness workflow did not PASS" in text
     assert "PHASE231_READINESS=PASS" in text
     assert "PHASE231_READINESS=FAIL" in text
+
+
+def test_phase231_orchestrator_handles_windows_powershell_json_arrays_safely() -> None:
+    text = _text()
+    assert "$parsedRuns = $json | ConvertFrom-Json" in text
+    assert "$parsedRuns -is [System.Array]" in text
+    assert '$Run.PSObject.Properties["createdAt"]' in text
+    assert '$candidateRuns[0].PSObject.Properties["databaseId"]' in text
+    assert "[DateTimeOffset]$_.createdAt" not in text
+
+
+def test_readiness_workflow_captures_identity_with_windows_native_shell() -> None:
+    text = _workflow_text()
+    identity_section = text.split("- name: Capture exact candidate identity", 1)[1].split(
+        "- name: Prepare compose environment without production credentials", 1
+    )[0]
+    assert "shell: powershell" in identity_section
+    assert "git rev-parse HEAD" in identity_section
+    assert "Checked-out candidate SHA mismatch" in identity_section
+    assert "$env:GITHUB_OUTPUT" in identity_section
+    assert "shell: bash" not in identity_section
