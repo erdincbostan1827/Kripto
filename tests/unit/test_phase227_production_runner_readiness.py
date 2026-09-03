@@ -103,7 +103,7 @@ def test_workflow_is_self_hosted_secret_free_and_fail_closed() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     setup_python = "actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38"
     validate_ref = 'python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"'
-    prepare_compose = "cp .env.example .env"
+    prepare_compose = 'Copy-Item -LiteralPath ".env.example" -Destination ".env" -Force'
     readiness_command = "python scripts/production_runner_readiness.py"
 
     assert "runs-on: [self-hosted, production-acceptance]" in text
@@ -118,5 +118,7 @@ def test_workflow_is_self_hosted_secret_free_and_fail_closed() -> None:
     assert "PRODUCTION_RUNNER_READINESS.json" in text
     assert "secrets." not in text
     assert "continue-on-error" not in text
+    assert "shell: bash" not in text
+    assert "cp .env.example .env" not in text
     assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in text
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
