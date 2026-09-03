@@ -33,7 +33,7 @@ function Get-CandidatePythonExecutables {
                     $candidates.Add((Join-Path ([string]$defaultValue) 'python.exe'))
                 }
             } catch {
-                Write-Verbose "Could not inspect Python registry key $root: $($_.Exception.Message)"
+                Write-Verbose "Could not inspect Python registry key ${root}: $($_.Exception.Message)"
             }
         }
     }
