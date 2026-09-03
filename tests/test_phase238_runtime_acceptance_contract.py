@@ -68,7 +68,7 @@ def test_phase238_workflow_uses_isolated_runtime_inputs_without_source_dirty_env
 def test_compose_defaults_to_dotenv_but_allows_report_scoped_acceptance_env() -> None:
     text = _text(COMPOSE)
 
-    marker = "env_file: [${APP_ENV_FILE:-.env}]"
+    marker = 'env_file: ["${APP_ENV_FILE:-.env}"]'
     assert text.count(marker) == 2
     assert "env_file: [.env]" not in text
 
