@@ -47,7 +47,12 @@ jobs:
               [ref]$errors
             )
             if ($errors.Count -ne 0) {
-              $errors | ForEach-Object { Write-Error $_.Message }
+              foreach ($parseError in $errors) {
+                $line = $parseError.Extent.StartLineNumber
+                $column = $parseError.Extent.StartColumnNumber
+                $extentText = $parseError.Extent.Text
+                Write-Error "${relativePath}:${line}:${column} $($parseError.Message) :: $extentText"
+              }
               throw "PowerShell parser found $($errors.Count) syntax error(s) in $relativePath."
             }
             Write-Host "PowerShell syntax PASS: $relativePath"
