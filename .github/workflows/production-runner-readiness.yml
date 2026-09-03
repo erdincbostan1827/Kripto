@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: '3.12.10'
 
 jobs:
   production-runner-readiness:
@@ -28,10 +28,27 @@ jobs:
           ref: ${{ github.event.inputs.candidate_ref }}
           fetch-depth: 0
 
-      - name: Setup Python
+      - name: Setup pinned Python from runner tool cache
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify pinned Python identity
+        shell: powershell
+        run: |
+          $version = (& python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
+          if ($LASTEXITCODE -ne 0 -or $version -ne '${{ env.PYTHON_VERSION }}') {
+            throw "Expected Python ${{ env.PYTHON_VERSION }}, got '$version'."
+          }
+          $pythonPath = (Get-Command python.exe).Source
+          if (-not $pythonPath.StartsWith($env:RUNNER_TOOL_CACHE, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Python was not resolved from RUNNER_TOOL_CACHE: $pythonPath"
+          }
+          python -m pip --version
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Pinned runner tool-cache Python does not provide pip.'
+          }
+          Write-Host "Pinned runner Python PASS: $pythonPath"
 
       - name: Enforce immutable candidate ref
         run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"
