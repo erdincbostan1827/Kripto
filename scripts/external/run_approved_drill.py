@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 -- explicit argv only; shell=True is forbidden and regression-tested.
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -82,7 +82,11 @@ def _run_redacted(argv: list[str], *, secret_command: str | None = None) -> int:
     if secret_command:
         redaction_env["APPROVED_COMMAND_SECRET"] = secret_command
     try:
-        proc = subprocess.run(
+        # B603 is reviewed here: argv is passed directly with shell=False (the
+        # subprocess default). Executables come only from the platform resolver
+        # or sys.executable, and approved command text is a trusted acceptance
+        # input passed as a single argument to that explicitly selected shell.
+        proc = subprocess.run(  # nosec B603
             argv,
             cwd=ROOT,
             env=os.environ.copy(),
