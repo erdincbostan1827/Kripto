@@ -44,6 +44,14 @@ def container_digest(image: str, *, root: Path = ROOT) -> str:
     return digest
 
 
+def _scanner_digest_verifier():
+    if __package__:
+        from .verify_scanner_image_digests import verify
+    else:
+        from verify_scanner_image_digests import verify
+    return verify
+
+
 def capture(*, root: Path = ROOT, env: dict[str, str] | None = None) -> dict:
     e = dict(os.environ if env is None else env)
     if e.get("CI", "").lower() not in {"1", "true", "yes"}:
@@ -74,7 +82,7 @@ def capture(*, root: Path = ROOT, env: dict[str, str] | None = None) -> dict:
     if missing:
         raise RuntimeError("missing provenance inputs: " + ",".join(missing))
 
-    from scripts.external.verify_scanner_image_digests import verify as verify_scanner_image_digests
+    verify_scanner_image_digests = _scanner_digest_verifier()
     scanner_result = verify_scanner_image_digests(required_files["scanner_image_digest_manifest_hash"])
     if not scanner_result.get("verified"):
         raise RuntimeError("scanner image digest receipt is invalid: " + ",".join(scanner_result.get("problems", [])))
