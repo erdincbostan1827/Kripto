@@ -1,0 +1,137 @@
+name: Phase 223 Chromium Browser Acceptance
+
+on:
+  push:
+    branches:
+      - phase223-browser-acceptance
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'scripts/external/frontend_browser_acceptance.py'
+      - '.github/workflows/phase223-browser-acceptance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase223-browser-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium-browser-acceptance:
+    name: chromium-browser-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Verify source-bound dependency locks
+        run: python scripts/verify_source_locks.py
+
+      - name: Verify real Chromium runner is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          BROWSER="$(command -v chromium || command -v chromium-browser || command -v google-chrome || true)"
+          test -n "$BROWSER"
+          "$BROWSER" --version
+
+      - name: Run lock-bound real Chromium acceptance
+        run: python scripts/external/frontend_browser_acceptance.py --confirm-real-target --timeout 600
+
+      - name: Enforce evidence identity and viewport gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+
+          root = Path('.')
+          report = root / 'reports' / 'external_acceptance' / 'frontend_browser_acceptance.json'
+          if not report.is_file():
+              raise SystemExit('BROWSER_ACCEPTANCE_REPORT_MISSING')
+          doc = json.loads(report.read_text(encoding='utf-8'))
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          lock = root / 'frontend' / 'package-lock.json'
+          lock_sha = hashlib.sha256(lock.read_bytes()).hexdigest()
+          expected_viewports = {'1920x1080', '1366x768', '1024x768', '390x844'}
+          rows = doc.get('evidence', {}).get('chromium_viewports', [])
+          actual_viewports = {str(row.get('viewport')) for row in rows}
+          failures = []
+          if doc.get('classification') != 'REAL_DEPENDENCY_RESOLVED_FRONTEND_BROWSER_ACCEPTANCE':
+              failures.append('CLASSIFICATION_MISMATCH')
+          if doc.get('verified') is not True:
+              failures.append('VERIFIED_FALSE')
+          if doc.get('real_target_explicitly_confirmed') is not True:
+              failures.append('REAL_TARGET_NOT_CONFIRMED')
+          if doc.get('git_commit_sha') != head:
+              failures.append('GIT_SHA_MISMATCH')
+          if doc.get('frontend_lock_sha256') != lock_sha:
+              failures.append('LOCK_SHA_MISMATCH')
+          if actual_viewports != expected_viewports:
+              failures.append('VIEWPORT_SET_MISMATCH')
+          for row in rows:
+              if row.get('status') != 'PASS' or row.get('root_rendered') is not True:
+                  failures.append(f"VIEWPORT_FAILED:{row.get('viewport')}")
+              if int(row.get('screenshot_bytes') or 0) < 1000:
+                  failures.append(f"SCREENSHOT_TOO_SMALL:{row.get('viewport')}")
+              if not row.get('screenshot_sha256') or not row.get('dom_sha256'):
+                  failures.append(f"EVIDENCE_HASH_MISSING:{row.get('viewport')}")
+          if failures:
+              print('\n'.join(sorted(set(failures))))
+              raise SystemExit(2)
+          print('PHASE223_CHROMIUM_BROWSER_ACCEPTANCE=PASS')
+          print(f'git_commit_sha={head}')
+          print(f'frontend_lock_sha256={lock_sha}')
+          PY
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          p = Path('reports/external_acceptance/frontend_browser_acceptance.json')
+          print('## Phase 223 Chromium browser acceptance')
+          if not p.is_file():
+              print('- Result: **NO REPORT**')
+              raise SystemExit(0)
+          d = json.loads(p.read_text(encoding='utf-8'))
+          print(f"- Verified: **{d.get('verified')}**")
+          print(f"- Candidate: `{d.get('git_commit_sha')}`")
+          print(f"- Chromium: `{d.get('chromium_version')}`")
+          print(f"- Lock SHA-256: `{d.get('frontend_lock_sha256')}`")
+          print(f"- Viewports: {', '.join(d.get('viewports', []))}")
+          print(f"- Blockers: {', '.join(d.get('blockers', [])) or 'none'}")
+          print('- Scope: real Chromium only; this does not claim Edge/Firefox/WebKit coverage or any credentialed TESTNET/PITR/HA/WORM/signing gate.')
+          PY
+
+      - name: Upload immutable browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase223-chromium-browser-evidence-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            reports/external_acceptance/frontend_browser_acceptance.json
+            reports/external_acceptance/frontend_browser_runs/**
