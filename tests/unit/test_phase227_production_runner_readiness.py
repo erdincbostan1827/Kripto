@@ -101,13 +101,22 @@ def test_source_lock_failure_is_blocking(tmp_path: Path, monkeypatch) -> None:
 
 def test_workflow_is_self_hosted_secret_free_and_fail_closed() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
+    setup_python = "actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38"
+    validate_ref = 'python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"'
+    prepare_compose = "cp .env.example .env"
+    readiness_command = "python scripts/production_runner_readiness.py"
+
     assert "runs-on: [self-hosted, production-acceptance]" in text
-    assert "python scripts/production_runner_readiness.py" in text
+    assert setup_python in text
+    assert validate_ref in text
+    assert prepare_compose in text
+    assert readiness_command in text
+    assert text.index(setup_python) < text.index(validate_ref)
+    assert text.index(validate_ref) < text.index(prepare_compose) < text.index(readiness_command)
     assert "--require-actions-context" in text
     assert "if: always()" in text
     assert "PRODUCTION_RUNNER_READINESS.json" in text
     assert "secrets." not in text
     assert "continue-on-error" not in text
     assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in text
-    assert "actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38" in text
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
