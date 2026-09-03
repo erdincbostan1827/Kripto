@@ -12,14 +12,17 @@ jobs:
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with: {python-version: '3.12'}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e '.[test]' 'ruff==0.12.11' 'mypy==1.17.1' pip-audit
+      - name: Install pinned CI tooling and locked backend environment
+        run: |
+          python -m pip install 'uv==0.12.9' 'ruff==0.12.11' 'mypy==1.17.1' pip-audit
+          uv sync --locked --extra test
       - name: Compile
         id: compile
         continue-on-error: true
         run: |
           mkdir -p reports
           set -o pipefail
-          python -m compileall -q backend scripts tests 2>&1 | tee reports/COMPILEALL.txt
+          .venv/bin/python -m compileall -q backend scripts tests 2>&1 | tee reports/COMPILEALL.txt
       - name: Ruff critical lint
         id: ruff
         continue-on-error: true
@@ -45,47 +48,42 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          pytest -q -W error --junitxml=reports/pytest.xml 2>&1 | tee reports/PYTEST.txt
+          .venv/bin/python -m pytest -q -W error --junitxml=reports/pytest.xml 2>&1 | tee reports/PYTEST.txt
       - name: Prohibited marker scan
         id: prohibited
         continue-on-error: true
         run: |
           set -o pipefail
-          python scripts/prohibited_scan.py 2>&1 | tee reports/PROHIBITED_SCAN_CI.txt
+          .venv/bin/python scripts/prohibited_scan.py 2>&1 | tee reports/PROHIBITED_SCAN_CI.txt
       - name: Secret scan
         id: secret
         continue-on-error: true
         run: |
           set -o pipefail
-          python scripts/secret_scan.py 2>&1 | tee reports/SECRET_SCAN_CI.txt
+          .venv/bin/python scripts/secret_scan.py 2>&1 | tee reports/SECRET_SCAN_CI.txt
       - name: Local SAST
         id: sast
         continue-on-error: true
         run: |
           set -o pipefail
-          python scripts/local_sast.py 2>&1 | tee reports/LOCAL_SAST_CI.txt
+          .venv/bin/python scripts/local_sast.py 2>&1 | tee reports/LOCAL_SAST_CI.txt
       - name: Alembic offline SQL
         id: alembic
         continue-on-error: true
-        run: alembic upgrade head --sql > reports/ALEMBIC_OFFLINE_SQL.txt
+        run: .venv/bin/alembic upgrade head --sql > reports/ALEMBIC_OFFLINE_SQL.txt
       - name: Python lock consistency
         id: uvlock
         continue-on-error: true
         run: |
-          python -m pip install 'uv==0.12.9'
-          set +e
           set -o pipefail
           uv lock --check 2>&1 | tee reports/UV_LOCK_CHECK.txt
-          status=$?
-          set -e
-          python -m pip uninstall -y uv >/dev/null
-          exit "$status"
-      - name: Dependency audit
+      - name: Dependency audit from committed runtime lock
         id: audit
         continue-on-error: true
         run: |
           set -o pipefail
-          pip-audit 2>&1 | tee reports/PIP_AUDIT.txt
+          uv export --locked --no-dev --format requirements-txt --output-file reports/REQUIREMENTS_LOCKED.txt
+          pip-audit -r reports/REQUIREMENTS_LOCKED.txt 2>&1 | tee reports/PIP_AUDIT.txt
       - name: Write backend gate summary
         if: always()
         env:
