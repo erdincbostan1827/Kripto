@@ -6,6 +6,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RequiredPythonVersion = '3.12.10'
+$RequiredPointerBits = 64
 
 function Get-CandidatePythonExecutables {
     $candidates = New-Object System.Collections.Generic.List[string]
@@ -56,12 +57,20 @@ foreach ($candidate in Get-CandidatePythonExecutables) {
         continue
     }
     try {
-        $versionOutput = & $candidate -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
-        if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+        $identityOutput = & $candidate -c "import struct,sys; print('.'.join(map(str, sys.version_info[:3])) + '|' + str(struct.calcsize('P') * 8))"
+        if ($LASTEXITCODE -ne 0 -or -not $identityOutput) {
             continue
         }
-        $version = ([string]$versionOutput).Trim()
-        if ($version -eq $RequiredPythonVersion) {
+        $parts = ([string]$identityOutput).Trim().Split('|')
+        if ($parts.Count -ne 2) {
+            continue
+        }
+        $version = $parts[0]
+        $pointerBits = 0
+        if (-not [int]::TryParse($parts[1], [ref]$pointerBits)) {
+            continue
+        }
+        if ($version -eq $RequiredPythonVersion -and $pointerBits -eq $RequiredPointerBits) {
             $selected = (Resolve-Path -LiteralPath $candidate).Path
             break
         }
@@ -81,7 +90,7 @@ No production acceptance can proceed without the pinned Windows Python runtime.
 
 $pipOutput = & $selected -m pip --version
 if ($LASTEXITCODE -ne 0 -or -not $pipOutput) {
-    throw "CPython $RequiredPythonVersion was found at '$selected' but pip is unavailable."
+    throw "CPython $RequiredPythonVersion x64 was found at '$selected' but pip is unavailable."
 }
 Write-Host ([string]$pipOutput).Trim()
 
@@ -97,6 +106,6 @@ if ($AddToGitHubPath) {
     }
 }
 
-Write-Host "Validated Windows Python: $RequiredPythonVersion"
+Write-Host "Validated Windows Python: $RequiredPythonVersion x64"
 Write-Host "Python executable: $selected"
 Write-Output $selected
