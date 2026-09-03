@@ -134,18 +134,37 @@ jobs:
           python scripts/external/verify_scanner_image_digests.py
           printf 'GITLEAKS_DIGEST=%s\nTRIVY_DIGEST=%s\nSYFT_DIGEST=%s\n' "$GITLEAKS_DIGEST" "$TRIVY_DIGEST" "$SYFT_DIGEST" >> "$GITHUB_ENV"
 
-      - name: Run pinned supply-chain gates and generate SBOM
+      - name: Export locked runtime requirements
+        run: uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
+
+      - name: Audit locked Python dependencies
+        run: pip-audit -r reports/external_acceptance/requirements.locked.txt
+
+      - name: Bandit source security gate
+        run: bandit -q -r backend scripts
+
+      - name: Semgrep source security gate
+        run: semgrep --config auto --error backend scripts
+
+      - name: Gitleaks repository secret gate
+        shell: bash
+        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
+
+      - name: Trivy filesystem vulnerability gate
+        shell: bash
+        run: docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
+
+      - name: Generate real Syft CycloneDX SBOM
         shell: bash
         run: |
           set -euo pipefail
-          uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
-          pip-audit -r reports/external_acceptance/requirements.locked.txt
-          bandit -q -r backend scripts
-          semgrep --config auto --error backend scripts
-          docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
-          docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
           docker run --rm -v "$PWD:/repo" "$SYFT_DIGEST" dir:/repo -o cyclonedx-json > reports/external_acceptance/sbom.cdx.json
           test -s reports/external_acceptance/sbom.cdx.json
+
+      - name: Generate license inventory and verify supply-chain artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
           pip-licenses --format=json --with-urls --output-file=reports/external_acceptance/dependency_licenses.json
           python scripts/external/verify_supply_chain_artifacts.py
 
@@ -207,6 +226,7 @@ jobs:
           if-no-files-found: error
           path: |
             reports/phase225/**
+            reports/external_acceptance/requirements.locked.txt
             reports/external_acceptance/scanner_image_digests.json
             reports/external_acceptance/sbom.cdx.json
             reports/external_acceptance/dependency_licenses.json
