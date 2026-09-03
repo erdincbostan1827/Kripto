@@ -3,6 +3,7 @@ name: Phase 223 Chromium Browser Acceptance
 on:
   push:
     branches:
+      - main
       - phase223-browser-acceptance
   pull_request:
     paths:
@@ -131,7 +132,7 @@ jobs:
         with:
           name: phase223-chromium-browser-evidence-${{ github.sha }}
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 90
           path: |
             reports/external_acceptance/frontend_browser_acceptance.json
             reports/external_acceptance/frontend_browser_runs/**
