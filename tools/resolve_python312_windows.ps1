@@ -5,6 +5,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$RequiredPythonVersion = '3.12.10'
 
 function Get-CandidatePythonExecutables {
     $candidates = New-Object System.Collections.Generic.List[string]
@@ -50,16 +51,18 @@ function Get-CandidatePythonExecutables {
 }
 
 $selected = $null
-$selectedVersion = $null
 foreach ($candidate in Get-CandidatePythonExecutables) {
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
         continue
     }
     try {
-        $version = (& $candidate -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
-        if ($LASTEXITCODE -eq 0 -and $version -match '^3\.12\.\d+$') {
+        $versionOutput = & $candidate -c "import sys; print('.'.join(map(str, sys.version_info[:3])))"
+        if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+            continue
+        }
+        $version = ([string]$versionOutput).Trim()
+        if ($version -eq $RequiredPythonVersion) {
             $selected = (Resolve-Path -LiteralPath $candidate).Path
-            $selectedVersion = $version
             break
         }
     } catch {
@@ -69,18 +72,18 @@ foreach ($candidate in Get-CandidatePythonExecutables) {
 
 if (-not $selected) {
     throw @"
-Python 3.12.x was not found on this Windows production-acceptance runner.
-Install CPython 3.12 x64 at machine scope, then rerun the readiness workflow.
-Recommended command from an elevated PowerShell window:
-  winget install --id Python.Python.3.12 -e --scope machine --accept-source-agreements --accept-package-agreements
-No production acceptance can proceed without a validated host Python 3.12.x runtime.
+CPython $RequiredPythonVersion x64 was not found on this Windows production-acceptance runner.
+Install the exact PSF WinGet package from an elevated PowerShell window, then rerun the bootstrap:
+  winget install --id Python.Python.3.12 --exact --version $RequiredPythonVersion --scope machine --accept-source-agreements --accept-package-agreements
+No production acceptance can proceed without the pinned Windows Python runtime.
 "@
 }
 
-& $selected -m pip --version
-if ($LASTEXITCODE -ne 0) {
-    throw "Python 3.12 was found at '$selected' but pip is unavailable."
+$pipOutput = & $selected -m pip --version
+if ($LASTEXITCODE -ne 0 -or -not $pipOutput) {
+    throw "CPython $RequiredPythonVersion was found at '$selected' but pip is unavailable."
 }
+Write-Host ([string]$pipOutput).Trim()
 
 if ($AddToGitHubPath) {
     if ([string]::IsNullOrWhiteSpace($env:GITHUB_PATH)) {
@@ -94,6 +97,6 @@ if ($AddToGitHubPath) {
     }
 }
 
-Write-Host "Validated Windows Python: $selectedVersion"
+Write-Host "Validated Windows Python: $RequiredPythonVersion"
 Write-Host "Python executable: $selected"
 Write-Output $selected
