@@ -1,0 +1,223 @@
+name: Phase 246 Campaign Acceptance
+run-name: Phase 246 Campaign Acceptance ${{ inputs.candidate_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Exact 40-character commit SHA whose real campaign evidence is being validated
+        required: true
+        type: string
+      bundle_path:
+        description: Absolute path on the production-acceptance runner to the campaign evidence ZIP
+        required: true
+        type: string
+      bundle_sha256:
+        description: Expected lowercase SHA-256 of the campaign evidence ZIP
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase246-campaign-acceptance-${{ inputs.candidate_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12.10'
+
+jobs:
+  campaign-acceptance:
+    name: campaign-acceptance
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 90
+    env:
+      ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: '1'
+      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Setup pinned Python from runner tool cache
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Enforce immutable candidate and campaign-only secret scope
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          CAMPAIGN_BUNDLE_PATH: ${{ inputs.bundle_path }}
+          CAMPAIGN_BUNDLE_SHA256: ${{ inputs.bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_REF -notmatch '^[0-9a-fA-F]{40}$') { throw 'candidate_ref must be an exact 40-character commit SHA' }
+          if ($env:CAMPAIGN_BUNDLE_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'bundle_sha256 must be an exact SHA-256 digest' }
+          if (-not [IO.Path]::IsPathFullyQualified($env:CAMPAIGN_BUNDLE_PATH)) { throw 'bundle_path must be absolute on the production-acceptance runner' }
+          if (-not (Test-Path -LiteralPath $env:CAMPAIGN_BUNDLE_PATH -PathType Leaf)) { throw 'campaign evidence bundle is not present on the runner' }
+          if ([string]::IsNullOrWhiteSpace($env:ACCEPTANCE_CHALLENGE_VERIFY_COMMAND)) { throw 'Required campaign acceptance input is missing: ACCEPTANCE_CHALLENGE_VERIFY_COMMAND' }
+          python scripts/validate_acceptance_ref.py $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable candidate validation failed.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw "Checked out SHA mismatch: $head" }
+          python scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+      - name: Verify and stage exact campaign evidence bundle
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          CAMPAIGN_BUNDLE_PATH: ${{ inputs.bundle_path }}
+          CAMPAIGN_BUNDLE_SHA256: ${{ inputs.bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/stage_campaign_evidence_bundle.py `
+            --bundle $env:CAMPAIGN_BUNDLE_PATH `
+            --expected-sha256 $env:CAMPAIGN_BUNDLE_SHA256 `
+            --expected-candidate $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Campaign evidence bundle verification/staging failed.' }
+          $transfer = Get-Content -LiteralPath 'reports/phase246/CAMPAIGN_BUNDLE_TRANSFER_VERIFICATION.json' -Raw | ConvertFrom-Json
+          if ($transfer.verified -ne $true) { throw 'Campaign evidence transfer receipt is not verified.' }
+          if ($transfer.candidate_sha -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw 'Campaign bundle candidate binding mismatch.' }
+          if ([string]::IsNullOrWhiteSpace([string]$transfer.acceptance_environment_id)) { throw 'Campaign bundle acceptance environment identity is missing.' }
+          if ([string]$transfer.topology_hash -notmatch '^[0-9a-f]{64}$') { throw 'Campaign bundle topology hash is invalid.' }
+          "ACCEPTANCE_ENVIRONMENT_ID=$($transfer.acceptance_environment_id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_TOPOLOGY_HASH=$($transfer.topology_hash)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Bind validation runner to transferred campaign environment
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $transfer = Get-Content -LiteralPath 'reports/phase246/CAMPAIGN_BUNDLE_TRANSFER_VERIFICATION.json' -Raw | ConvertFrom-Json
+          $identity = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE246_CAMPAIGN_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            bundle_sha256 = [string]$transfer.bundle_sha256
+            campaign_environment_id_sha256 = [string]$transfer.acceptance_environment_id_sha256
+            topology_hash = [string]$transfer.topology_hash
+            staged_file_count = [int]$transfer.staged_file_count
+            source_artifact_count = [int]$transfer.referenced_source_artifact_count
+            live_enabled = $false
+            production_ready = $false
+            truth_policy = 'This receipt identifies the Windows validation runner and the separately transferred real campaign environment. It does not claim the campaign ran on the validation runner and it never authorizes LIVE orders.'
+          }
+          New-Item -ItemType Directory -Force -Path 'reports/phase246' | Out-Null
+          $identity | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase246/CAMPAIGN_TARGET_IDENTITY.json' -Encoding utf8
+
+      - name: Run fail-closed real campaign evidence profile
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external_acceptance_runner.py --profile campaigns --confirm-real-target --timeout 1800
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 246 campaign acceptance did not PASS.' }
+
+      - name: Capture Phase 246 result
+        if: always()
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'reports/phase246' | Out-Null
+          $manifestPath = 'reports/external_acceptance/manifest_campaigns.json'
+          $transferPath = 'reports/phase246/CAMPAIGN_BUNDLE_TRANSFER_VERIFICATION.json'
+          $passed = $false
+          $blocker = 'REQUIRED_MANIFEST_MISSING'
+          $privateStream = 'NOT_EVALUATED'
+          $paper = 'NOT_EVALUATED'
+          $liveShadow = 'NOT_EVALUATED'
+          $profitability = 'NOT_EVALUATED'
+          $challengeVerified = $false
+          $challengeTrustVerified = $false
+          $transferVerified = $false
+
+          if (Test-Path -LiteralPath $transferPath -PathType Leaf) {
+            $transfer = Get-Content -LiteralPath $transferPath -Raw | ConvertFrom-Json
+            $transferVerified = ($transfer.verified -eq $true -and $transfer.candidate_sha -eq $env:CANDIDATE_REF.ToLowerInvariant())
+          }
+          if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            if ($null -ne $manifest.groups.private_stream) { $privateStream = [string]$manifest.groups.private_stream }
+            if ($null -ne $manifest.groups.paper_campaign) { $paper = [string]$manifest.groups.paper_campaign }
+            if ($null -ne $manifest.groups.live_shadow) { $liveShadow = [string]$manifest.groups.live_shadow }
+            if ($null -ne $manifest.groups.profitability) { $profitability = [string]$manifest.groups.profitability }
+            $challengeVerified = ($manifest.challenge.verified -eq $true)
+            $challengeTrustVerified = ($manifest.challenge.trust_verified -eq $true)
+            if ($null -ne $manifest.PSObject.Properties['blocker']) { $blocker = [string]$manifest.blocker }
+            elseif ($manifest.selected_all_pass -eq $true) { $blocker = '' }
+            else { $blocker = 'CAMPAIGN_PROFILE_NOT_ALL_PASS' }
+
+            if ($transferVerified) {
+              $expectedEnvHash = [string]$transfer.acceptance_environment_id_sha256
+              $expectedTopology = [string]$transfer.topology_hash
+              $passed = (
+                $manifest.classification -eq 'EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE' -and
+                $manifest.profile -eq 'campaigns' -and
+                $manifest.environment.git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+                $manifest.environment.acceptance_environment_id_hash -eq $expectedEnvHash -and
+                $manifest.environment.topology_hash -eq $expectedTopology -and
+                $manifest.real_target_explicitly_confirmed -eq $true -and
+                $challengeVerified -and
+                $challengeTrustVerified -and
+                $manifest.selected_all_pass -eq $true -and
+                $privateStream -eq 'PASS' -and
+                $paper -eq 'PASS' -and
+                $liveShadow -eq 'PASS' -and
+                $profitability -eq 'PASS'
+              )
+            }
+          }
+
+          $result = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE246_CAMPAIGN_ACCEPTANCE_WORKFLOW_RESULT'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            passed = $passed
+            blocker = $blocker
+            campaign_bundle_transfer_verified = $transferVerified
+            challenge_verified = $challengeVerified
+            challenge_trust_verified = $challengeTrustVerified
+            private_stream_group = $privateStream
+            paper_campaign_group = $paper
+            live_shadow_group = $liveShadow
+            profitability_group = $profitability
+            live_enabled = $false
+            production_ready = $false
+            truth_policy = 'Phase 246 PASS closes only release-bound campaign/private-stream evidence for the exact candidate. Live-shadow evidence must prove zero real order submissions. This phase never authorizes LIVE trading.'
+          }
+          $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase246/PHASE246_CAMPAIGN_RESULT.json' -Encoding utf8
+          $result | ConvertTo-Json -Depth 8 | Out-Host
+
+      - name: Upload exact-SHA Phase 246 campaign evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase246-campaign-acceptance-${{ inputs.candidate_ref }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            reports/external_acceptance/release_challenge.json
+            reports/external_acceptance/campaign/**
+            reports/external_acceptance/manifest_campaigns.json
+            reports/external_acceptance/runs/**/campaigns/**
+            reports/phase246/**
