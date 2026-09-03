@@ -33,8 +33,10 @@ def test_readiness_uses_exact_cached_python() -> None:
     assert "actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38" in text
 
 
-def test_production_acceptance_still_targets_self_hosted_gate() -> None:
+def test_production_acceptance_uses_exact_python_and_self_hosted_gate() -> None:
     text = PRODUCTION_ACCEPTANCE.read_text(encoding="utf-8")
+    assert "PYTHON_VERSION: '3.12.10'" in text
+    assert "PYTHON_VERSION: '3.12'\n" not in text
     assert "runs-on: [self-hosted, production-acceptance]" in text
     assert "environment: production-acceptance" in text
     assert "python-version: ${{ env.PYTHON_VERSION }}" in text
