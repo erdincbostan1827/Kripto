@@ -43,7 +43,7 @@ def test_valid_preflight_is_verified_without_serializing_secrets(tmp_path: Path,
     payload = preflight.run_preflight(tmp_path, env=env, which=lambda tool: f"/tools/{tool}")
     assert payload["verified"] is True
     assert payload["problems"] == []
-    assert payload["secret_values_serialized"] is False
+    assert payload["redaction_policy"] == "values_omitted"
     assert "SUPER_SECRET_SENTINEL" not in json.dumps(payload, sort_keys=True)
 
 
