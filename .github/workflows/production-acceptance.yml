@@ -312,6 +312,36 @@ jobs:
           test "$ACTUAL" = "$EXPECTED_CONTAINER_DIGEST"
           printf '%s\n' "$ACTUAL" > reports/CI_CONTAINER_REPODIGEST_VERIFIED.txt
 
+      - name: Fail-closed production real-target preflight
+        env:
+          EXPECTED_ACCEPTANCE_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
+          EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}
+          ACCEPTANCE_CONTAINER_IMAGE: ${{ needs.ci-build-evidence.outputs.container_image }}
+          BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+          BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
+          BINANCE_TESTNET_EXECUTE: 'YES'
+          PITR_DRILL_COMMAND: ${{ secrets.PITR_DRILL_COMMAND }}
+          PITR_EVIDENCE_JSON: ${{ secrets.PITR_EVIDENCE_JSON }}
+          HA_DRILL_COMMAND: ${{ secrets.HA_DRILL_COMMAND }}
+          HA_EVIDENCE_JSON: ${{ secrets.HA_EVIDENCE_JSON }}
+          WORM_ACCEPTANCE_COMMAND: ${{ secrets.WORM_ACCEPTANCE_COMMAND }}
+          WORM_EVIDENCE_JSON: ${{ secrets.WORM_EVIDENCE_JSON }}
+          RESTART_DRILL_COMMAND: ${{ secrets.RESTART_DRILL_COMMAND }}
+          RESTART_EVIDENCE_JSON: ${{ secrets.RESTART_EVIDENCE_JSON }}
+          PROVENANCE_SIGN_VERIFY_COMMAND: ${{ secrets.PROVENANCE_SIGN_VERIFY_COMMAND }}
+          ACCEPTANCE_ENVIRONMENT_ID: ${{ vars.ACCEPTANCE_ENVIRONMENT_ID }}
+          ACCEPTANCE_TOPOLOGY_HASH: ${{ vars.ACCEPTANCE_TOPOLOGY_HASH }}
+          ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"
+          ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+          LEDGER_CHECKPOINT_SIGN_COMMAND: ${{ secrets.LEDGER_CHECKPOINT_SIGN_COMMAND }}
+          ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND }}
+          CI: 'true'
+          CI_RUN_ID: ${{ github.run_id }}
+          CI_COMMIT_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
+        run: >-
+          python scripts/production_acceptance_preflight.py
+          --output reports/production_acceptance/PRODUCTION_ACCEPTANCE_PREFLIGHT.json
+
       - name: Run fail-closed real-target orchestrator
         env:
           BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
@@ -356,6 +386,7 @@ jobs:
           retention-days: 30
           path: |
             reports/external_acceptance/**
+            reports/production_acceptance/**
             reports/PRODUCTION_ACCEPTANCE_ORCHESTRATION.json
             reports/CI_BUILD_ARTIFACT_IDENTITY.json
             reports/CI_RELEASE_GATE.txt
