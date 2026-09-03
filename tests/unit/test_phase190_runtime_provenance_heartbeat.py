@@ -23,11 +23,28 @@ def _rollback_fixture(tmp_path: Path):
 def test_operation_lock_heartbeat_advances_lease_epoch(tmp_path: Path):
     with oplock.operation_lock(tmp_path,operation='long-op',heartbeat_interval_seconds=0.05) as held:
         first=json.loads((tmp_path/oplock.LOCK_NAME).read_text())['heartbeat_epoch']
-        time.sleep(0.16)
-        second=json.loads((tmp_path/oplock.LOCK_NAME).read_text())['heartbeat_epoch']
+        deadline=time.monotonic()+1.0
+        second=first
+        while second <= first and time.monotonic() < deadline:
+            time.sleep(0.01)
+            second=json.loads((tmp_path/oplock.LOCK_NAME).read_text())['heartbeat_epoch']
         assert second > first
         manual=held['heartbeat']()
-        assert manual >= second
+        assert manual > second
+    assert not (tmp_path/oplock.LOCK_NAME).exists()
+
+
+def test_operation_lock_manual_heartbeat_advances_with_constant_wall_clock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    fixed_epoch=1_700_000_000.0
+    monkeypatch.setattr(oplock.time,'time',lambda:fixed_epoch)
+    with oplock.operation_lock(tmp_path,operation='constant-clock',heartbeat_interval_seconds=300) as held:
+        path=tmp_path/oplock.LOCK_NAME
+        first=json.loads(path.read_text())['heartbeat_epoch']
+        manual=held['heartbeat']()
+        second=json.loads(path.read_text())['heartbeat_epoch']
+        assert first == fixed_epoch
+        assert manual == second
+        assert second > first
     assert not (tmp_path/oplock.LOCK_NAME).exists()
 
 
