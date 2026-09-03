@@ -148,7 +148,7 @@ def orchestrate(*, confirm_real: bool, timeout: int = 300, profiles: tuple[str, 
     ledger_checkpoint = {"executed": False, "exit_code": None, "blocker": "MERGED_ACCEPTANCE_NOT_ALL_PASS"}
     if merged.get("selected_all_pass") is True:
         if os.getenv("LEDGER_CHECKPOINT_SIGN_COMMAND") and os.getenv("ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND"):
-            ledger_checkpoint = _run_cli(["bash", "scripts/external/ledger_checkpoint_sign_verify.sh"], timeout=timeout)
+            ledger_checkpoint = _run_cli([sys.executable, "scripts/external/ledger_checkpoint_sign_verify.py"], timeout=timeout)
         else:
             ledger_checkpoint = {
                 "executed": False,
