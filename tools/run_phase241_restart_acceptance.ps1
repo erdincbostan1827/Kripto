@@ -62,7 +62,7 @@ function Write-PhaseResult {
         detail = $Detail
         blocker = $Blocker
         production_ready = $false
-        truth_policy = "Phase 241 PASS closes only the exact-SHA runtime prerequisite and restart-drills acceptance. It does not authorize LIVE trading or close TESTNET/PITR/HA/WORM/signing gates."
+        truth_policy = "Phase 241 PASS closes only the exact-SHA runtime prerequisite and restart-drills acceptance on the intended Windows target identity. It does not authorize LIVE trading or close TESTNET/PITR/HA/WORM/signing gates."
     }
     $resolvedOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
     New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
@@ -153,22 +153,36 @@ try {
 
     $workflowResultPath = Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File -Filter "PHASE241_RESTART_RESULT.json" |
         Select-Object -First 1 -ExpandProperty FullName
+    $identityPath = Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File -Filter "RESTART_TARGET_IDENTITY.json" |
+        Select-Object -First 1 -ExpandProperty FullName
     $runtimePath = Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File -Filter "manifest_runtime.json" |
         Select-Object -First 1 -ExpandProperty FullName
     $restartPath = Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File -Filter "manifest_restart-drills.json" |
         Select-Object -First 1 -ExpandProperty FullName
 
     if (-not $workflowResultPath) { throw "Phase 241 artifact did not contain PHASE241_RESTART_RESULT.json." }
+    if (-not $identityPath) { throw "Phase 241 artifact did not contain RESTART_TARGET_IDENTITY.json." }
     if (-not $runtimePath) { throw "Phase 241 artifact did not contain manifest_runtime.json." }
     if (-not $restartPath) { throw "Phase 241 artifact did not contain manifest_restart-drills.json." }
 
     $workflowResult = Get-Content -LiteralPath $workflowResultPath -Raw | ConvertFrom-Json
+    $identity = Get-Content -LiteralPath $identityPath -Raw | ConvertFrom-Json
     $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
     $restart = Get-Content -LiteralPath $restartPath -Raw | ConvertFrom-Json
 
     if ($workflowResult.classification -ne "PHASE241_RESTART_ACCEPTANCE_WORKFLOW_RESULT") {
         throw "Unexpected Phase 241 workflow result classification: $($workflowResult.classification)"
     }
+    if ($identity.classification -ne "PHASE241_RESTART_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE") {
+        throw "Unexpected Phase 241 target identity classification: $($identity.classification)"
+    }
+    if ($identity.candidate_sha -ne $CandidateRef) {
+        throw "Phase 241 target identity is bound to a different git SHA: $($identity.candidate_sha)"
+    }
+    if ($identity.runner_os -ne "Windows") {
+        throw "Phase 241 target identity did not run on Windows: $($identity.runner_os)"
+    }
+
     foreach ($manifest in @($runtime, $restart)) {
         if ($manifest.classification -ne "EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE") {
             throw "Unexpected external acceptance classification: $($manifest.classification)"
@@ -176,13 +190,22 @@ try {
         if ($manifest.environment.git_commit_sha -ne $CandidateRef) {
             throw "Acceptance evidence is bound to a different git SHA: $($manifest.environment.git_commit_sha)"
         }
+        if ($manifest.environment.topology_hash -ne $identity.topology_hash) {
+            throw "Acceptance evidence topology hash does not match the Phase 241 target identity."
+        }
     }
     if ($runtime.profile -ne "runtime") { throw "Unexpected runtime profile: $($runtime.profile)" }
     if ($restart.profile -ne "restart-drills") { throw "Unexpected restart profile: $($restart.profile)" }
+    if ($workflowResult.candidate_sha -ne $CandidateRef) {
+        throw "Phase 241 workflow result is bound to a different git SHA: $($workflowResult.candidate_sha)"
+    }
 
     if ($null -ne $workflowResult.PSObject.Properties["blocker"]) { $blocker = [string]$workflowResult.blocker }
     if ([string]::IsNullOrWhiteSpace($blocker) -and $null -ne $restart.PSObject.Properties["blocker"]) {
         $blocker = [string]$restart.blocker
+    }
+    if ([string]::IsNullOrWhiteSpace($blocker) -and $null -ne $runtime.PSObject.Properties["blocker"]) {
+        $blocker = [string]$runtime.blocker
     }
 
     $runtimeStatus = [string]$runtime.groups.runtime
@@ -190,7 +213,6 @@ try {
     $passed = (
         $workflowPassed -and
         $workflowResult.passed -eq $true -and
-        $workflowResult.candidate_sha -eq $CandidateRef -and
         $runtime.real_target_explicitly_confirmed -eq $true -and
         $restart.real_target_explicitly_confirmed -eq $true -and
         $runtime.challenge.verified -eq $true -and
@@ -220,7 +242,7 @@ try {
         throw "Phase 241 Restart Acceptance failed closed: $blocker"
     }
 
-    Write-PhaseResult -Passed $true -RunId $runId -Detail "Exact-SHA trusted runtime prerequisite and restart-drills acceptance verified." -Blocker ""
+    Write-PhaseResult -Passed $true -RunId $runId -Detail "Exact-SHA trusted runtime prerequisite and restart-drills acceptance verified on the bound Windows target identity." -Blocker ""
     Write-Host "PHASE241_RESTART_ACCEPTANCE=PASS"
     Write-Host "Candidate SHA: $CandidateRef"
     Write-Host "Workflow run id: $runId"
