@@ -90,7 +90,7 @@ jobs:
           }
 
           $resolverRequired = @(
-            "$RequiredPythonVersion = '3.12.10'",
+            '$RequiredPythonVersion = ''3.12.10''',
             'Python.Python.3.12',
             'pip is unavailable',
             'No production acceptance can proceed'
