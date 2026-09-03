@@ -8,7 +8,9 @@ on:
     paths:
       - '.github/workflows/production-acceptance.yml'
       - '.github/workflows/phase225-production-build-evidence.yml'
+      - 'config/bandit-baseline-manifest.json'
       - 'scripts/verify_production_acceptance_hardening.py'
+      - 'scripts/external/verify_bandit_baseline.py'
       - 'scripts/external/verify_scanner_image_digests.py'
       - 'scripts/external/verify_supply_chain_artifacts.py'
       - 'scripts/external/provenance_capture.py'
@@ -20,7 +22,9 @@ on:
     paths:
       - '.github/workflows/production-acceptance.yml'
       - '.github/workflows/phase225-production-build-evidence.yml'
+      - 'config/bandit-baseline-manifest.json'
       - 'scripts/verify_production_acceptance_hardening.py'
+      - 'scripts/external/verify_bandit_baseline.py'
       - 'scripts/external/verify_scanner_image_digests.py'
       - 'scripts/external/verify_supply_chain_artifacts.py'
       - 'scripts/external/provenance_capture.py'
@@ -141,7 +145,18 @@ jobs:
         run: pip-audit -r reports/external_acceptance/requirements.locked.txt
 
       - name: Bandit source security gate
-        run: bandit -q -r backend scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          bandit -q -r backend scripts -f json -o reports/external_acceptance/bandit-report.json
+          BANDIT_RC=$?
+          set -e
+          if [ "$BANDIT_RC" -gt 1 ]; then
+            echo "Bandit scanner execution failed with rc=$BANDIT_RC" >&2
+            exit "$BANDIT_RC"
+          fi
+          python scripts/external/verify_bandit_baseline.py reports/external_acceptance/bandit-report.json
 
       - name: Semgrep source security gate
         run: semgrep --config auto --error backend scripts
@@ -228,6 +243,7 @@ jobs:
             reports/phase225/**
             reports/external_acceptance/requirements.locked.txt
             reports/external_acceptance/scanner_image_digests.json
+            reports/external_acceptance/bandit-report.json
             reports/external_acceptance/sbom.cdx.json
             reports/external_acceptance/dependency_licenses.json
             reports/external_acceptance/supply_chain_artifact_verification.json
