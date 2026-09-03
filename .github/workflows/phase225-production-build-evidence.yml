@@ -1,0 +1,214 @@
+name: Phase 225 Production Build Evidence
+
+on:
+  push:
+    branches:
+      - main
+      - phase225-production-acceptance-hardening
+    paths:
+      - '.github/workflows/production-acceptance.yml'
+      - '.github/workflows/phase225-production-build-evidence.yml'
+      - 'scripts/verify_production_acceptance_hardening.py'
+      - 'scripts/external/verify_scanner_image_digests.py'
+      - 'scripts/external/verify_supply_chain_artifacts.py'
+      - 'scripts/external/provenance_capture.py'
+      - 'tests/test_production_acceptance_hardening.py'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+  pull_request:
+    paths:
+      - '.github/workflows/production-acceptance.yml'
+      - '.github/workflows/phase225-production-build-evidence.yml'
+      - 'scripts/verify_production_acceptance_hardening.py'
+      - 'scripts/external/verify_scanner_image_digests.py'
+      - 'scripts/external/verify_supply_chain_artifacts.py'
+      - 'scripts/external/provenance_capture.py'
+      - 'tests/test_production_acceptance_hardening.py'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - 'Dockerfile'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: phase225-production-build-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  UV_VERSION: '0.12.9'
+
+jobs:
+  production-build-evidence:
+    name: production-build-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify workflow hardening before networked evidence
+        run: |
+          python scripts/verify_workflow_action_pins.py
+          python scripts/verify_production_acceptance_hardening.py
+          python scripts/verify_acceptance_contract_parity.py
+          python scripts/verify_source_locks.py
+
+      - name: Install exact hosted evidence toolchain
+        run: |
+          python -m pip install --disable-pip-version-check \
+            'uv==0.12.9' \
+            'pip-audit==2.10.1' \
+            'bandit==1.9.4' \
+            'semgrep==1.175.0' \
+            'cyclonedx-bom==7.3.1' \
+            'pip-licenses==5.5.5'
+          uv lock --locked
+          python -m pip freeze | sort > reports/PHASE225_SCANNER_VERSIONS.txt
+
+      - name: Build and push exact lowercase acceptance image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse HEAD)"
+          REPOSITORY_LC="${GITHUB_REPOSITORY,,}"
+          IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"
+          test "$IMAGE" = "${IMAGE,,}"
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          docker pull "$IMAGE"
+          DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")"
+          case "$DIGEST" in *@sha256:????????????????????????????????????????????????????????????????) ;; *) echo 'immutable GHCR digest missing' >&2; exit 2;; esac
+          mkdir -p reports/phase225 reports/external_acceptance
+          printf '%s\n' "$IMAGE" > reports/phase225/ACCEPTANCE_IMAGE.txt
+          printf '%s\n' "$DIGEST" > reports/phase225/ACCEPTANCE_IMAGE_DIGEST.txt
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve scanner images to immutable digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolve_digest() {
+            local image="$1"
+            docker pull "$image" >/dev/null
+            local digest
+            digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image")"
+            case "$digest" in *@sha256:????????????????????????????????????????????????????????????????) ;; *) echo "invalid RepoDigest for $image" >&2; exit 2;; esac
+            printf '%s' "$digest"
+          }
+          GITLEAKS_IMAGE='ghcr.io/gitleaks/gitleaks:v8.28.0'
+          TRIVY_IMAGE='aquasec/trivy:0.65.0'
+          SYFT_IMAGE='anchore/syft:v1.32.0'
+          GITLEAKS_DIGEST="$(resolve_digest "$GITLEAKS_IMAGE")"
+          TRIVY_DIGEST="$(resolve_digest "$TRIVY_IMAGE")"
+          SYFT_DIGEST="$(resolve_digest "$SYFT_IMAGE")"
+          export GITLEAKS_IMAGE TRIVY_IMAGE SYFT_IMAGE GITLEAKS_DIGEST TRIVY_DIGEST SYFT_DIGEST
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          payload = {
+              'schema_version': '1.0',
+              'classification': 'CI_SCANNER_IMAGE_DIGEST_RECEIPT',
+              'scanners': {
+                  'gitleaks': {'requested_image': os.environ['GITLEAKS_IMAGE'], 'resolved_digest': os.environ['GITLEAKS_DIGEST']},
+                  'trivy': {'requested_image': os.environ['TRIVY_IMAGE'], 'resolved_digest': os.environ['TRIVY_DIGEST']},
+                  'syft': {'requested_image': os.environ['SYFT_IMAGE'], 'resolved_digest': os.environ['SYFT_DIGEST']},
+              },
+          }
+          Path('reports/external_acceptance/scanner_image_digests.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+          python scripts/external/verify_scanner_image_digests.py
+          printf 'GITLEAKS_DIGEST=%s\nTRIVY_DIGEST=%s\nSYFT_DIGEST=%s\n' "$GITLEAKS_DIGEST" "$TRIVY_DIGEST" "$SYFT_DIGEST" >> "$GITHUB_ENV"
+
+      - name: Run pinned supply-chain gates and generate SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
+          pip-audit -r reports/external_acceptance/requirements.locked.txt
+          bandit -q -r backend scripts
+          semgrep --config auto --error backend scripts
+          docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
+          docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
+          docker run --rm -v "$PWD:/repo" "$SYFT_DIGEST" dir:/repo -o cyclonedx-json > reports/external_acceptance/sbom.cdx.json
+          test -s reports/external_acceptance/sbom.cdx.json
+          pip-licenses --format=json --with-urls --output-file=reports/external_acceptance/dependency_licenses.json
+          python scripts/external/verify_supply_chain_artifacts.py
+
+      - name: Capture exact hosted CI provenance
+        env:
+          CI: 'true'
+          CI_RUN_ID: ${{ github.run_id }}
+          CI_COMMIT_SHA: ${{ github.sha }}
+        run: python scripts/external/provenance_capture.py
+
+      - name: Create fail-closed Phase 225 manifest
+        env:
+          ACCEPTANCE_IMAGE: ${{ steps.image.outputs.image }}
+          ACCEPTANCE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path('.')
+          out = root / 'reports' / 'phase225'
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          payload = {
+              'schema_version': '1.0',
+              'classification': 'PRODUCTION_BUILD_EVIDENCE_HOSTED_ONLY',
+              'verified': True,
+              'git_commit_sha': head,
+              'created_at_utc': datetime.now(timezone.utc).isoformat(),
+              'acceptance_image': os.environ['ACCEPTANCE_IMAGE'],
+              'acceptance_image_digest': os.environ['ACCEPTANCE_DIGEST'],
+              'sbom_sha256': hashlib.sha256((root / 'reports/external_acceptance/sbom.cdx.json').read_bytes()).hexdigest(),
+              'provenance_sha256': hashlib.sha256((root / 'reports/external_acceptance/provenance.json').read_bytes()).hexdigest(),
+              'truth_boundary': {
+                  'hosted_build_evidence_passed': True,
+                  'real_target_acceptance_claimed': False,
+                  'credentialed_testnet_claimed': False,
+                  'restart_pitr_ha_worm_claimed': False,
+                  'trusted_signing_claimed': False,
+                  'production_live_accepted': False,
+              },
+          }
+          target = out / 'PRODUCTION_BUILD_EVIDENCE.json'
+          target.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print('PHASE225_PRODUCTION_BUILD_EVIDENCE=PASS')
+          print(f'git_commit_sha={head}')
+          print(f'image_digest={payload["acceptance_image_digest"]}')
+          PY
+
+      - name: Upload immutable hosted build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase225-production-build-evidence-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            reports/phase225/**
+            reports/external_acceptance/scanner_image_digests.json
+            reports/external_acceptance/sbom.cdx.json
+            reports/external_acceptance/dependency_licenses.json
+            reports/external_acceptance/supply_chain_artifact_verification.json
+            reports/external_acceptance/provenance.json
+            reports/PHASE225_SCANNER_VERSIONS.txt
