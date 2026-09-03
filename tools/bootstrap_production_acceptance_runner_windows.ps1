@@ -19,6 +19,7 @@ $RunnerVersion = "2.337.0"
 $RunnerArchive = "actions-runner-win-x64-$RunnerVersion.zip"
 $RunnerUrl = "https://github.com/actions/runner/releases/download/v$RunnerVersion/$RunnerArchive"
 $RunnerSha256 = "1150692afa94e71f872017e254ea55b6eece1eece3fe7e3a6d4c93d0a1b85cfc"
+$PinnedPythonVersion = "3.12.10"
 $EnvironmentName = "production-acceptance"
 $RequiredSecretNames = @(
     "BINANCE_TESTNET_API_KEY",
@@ -66,15 +67,72 @@ function Assert-Administrator {
     }
 }
 
-function Assert-Python312 {
+function Resolve-PinnedPython {
     $resolver = Join-Path $PSScriptRoot "resolve_python312_windows.ps1"
     if (-not (Test-Path -LiteralPath $resolver -PathType Leaf)) {
         throw "Python resolver is missing: $resolver"
     }
-    & $resolver | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        throw "Windows Python 3.12 validation failed."
+    $resolved = @(& $resolver)
+    if ($LASTEXITCODE -ne 0 -or $resolved.Count -ne 1) {
+        throw "Windows CPython $PinnedPythonVersion validation failed."
     }
+    $pythonPath = ([string]$resolved[0]).Trim()
+    if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
+        throw "Validated Python path is not a file: $pythonPath"
+    }
+    return (Resolve-Path -LiteralPath $pythonPath).Path
+}
+
+function Provision-PythonToolCache {
+    param([Parameter(Mandatory = $true)][string]$PythonPath)
+
+    Write-Stage "Provision pinned CPython $PinnedPythonVersion into GitHub runner tool cache"
+    $sourceDirectory = Split-Path -Parent $PythonPath
+    $toolCacheRoot = Join-Path $RunnerDirectory "_work\_tool"
+    $versionRoot = Join-Path $toolCacheRoot "Python\$PinnedPythonVersion"
+    $architectureRoot = Join-Path $versionRoot "x64"
+    $completeMarker = Join-Path $versionRoot "x64.complete"
+    $cachedPython = Join-Path $architectureRoot "python.exe"
+
+    if ((Test-Path -LiteralPath $completeMarker -PathType Leaf) -and (Test-Path -LiteralPath $cachedPython -PathType Leaf)) {
+        $cachedVersion = (& $cachedPython -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
+        if ($LASTEXITCODE -eq 0 -and $cachedVersion -eq $PinnedPythonVersion) {
+            & $cachedPython -m pip --version | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                throw "Cached CPython $PinnedPythonVersion exists but pip validation failed."
+            }
+            Write-Host "Runner tool-cache already contains validated CPython $PinnedPythonVersion: $cachedPython"
+            return
+        }
+        throw "Runner tool-cache complete marker exists but cached Python identity is invalid: $cachedPython"
+    }
+
+    if (Test-Path -LiteralPath $versionRoot) {
+        Write-Warning "Removing only incomplete CPython $PinnedPythonVersion tool-cache entry left by a failed setup-python attempt: $versionRoot"
+        Remove-Item -LiteralPath $versionRoot -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path $architectureRoot -Force | Out-Null
+    Copy-Item -Path (Join-Path $sourceDirectory '*') -Destination $architectureRoot -Recurse -Force
+
+    if (-not (Test-Path -LiteralPath $cachedPython -PathType Leaf)) {
+        throw "Python tool-cache copy did not create expected executable: $cachedPython"
+    }
+    $copiedVersion = (& $cachedPython -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
+    if ($LASTEXITCODE -ne 0 -or $copiedVersion -ne $PinnedPythonVersion) {
+        throw "Copied runner tool-cache Python identity mismatch. Expected $PinnedPythonVersion, got '$copiedVersion'."
+    }
+    & $cachedPython -m pip --version | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Copied CPython $PinnedPythonVersion tool-cache runtime does not provide pip."
+    }
+
+    New-Item -ItemType File -Path $completeMarker -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $completeMarker -PathType Leaf)) {
+        throw "Could not create GitHub tool-cache completeness marker: $completeMarker"
+    }
+    Write-Host "Pinned Python tool-cache PASS: $cachedPython"
+    Write-Host "Completeness marker: $completeMarker"
 }
 
 function Resolve-ExactCandidateSha {
@@ -274,7 +332,8 @@ Invoke-Checked bash --version
 Invoke-Checked docker --version
 Invoke-Checked docker info
 Invoke-Checked docker compose version
-Assert-Python312
+$pinnedPython = Resolve-PinnedPython
+Provision-PythonToolCache -PythonPath $pinnedPython
 
 $exactSha = Resolve-ExactCandidateSha -RequestedRef $CandidateRef
 Ensure-GitHubEnvironment -ExactSha $exactSha
@@ -287,6 +346,7 @@ Write-Stage "Bootstrap completed"
 Write-Host "Repository: $Repository"
 Write-Host "Runner: $RunnerName"
 Write-Host "Mode: $Mode"
+Write-Host "Pinned Python: $PinnedPythonVersion"
 Write-Host "Exact candidate SHA: $exactSha"
 Write-Host "Next acceptance boundary: Production Runner Readiness must PASS for this exact SHA before Production Acceptance is attempted."
 Write-Host "No production-ready/LIVE claim is made by this bootstrap."
