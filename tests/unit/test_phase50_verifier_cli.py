@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 
 def test_external_verifier_cli_import_path_is_valid() -> None:
     root = Path(__file__).resolve().parents[2]
     proc = subprocess.run(
-        ["python", "scripts/verify_external_acceptance.py", "reports/external_acceptance/manifest_runtime.json"],
+        [sys.executable, "scripts/verify_external_acceptance.py", "reports/external_acceptance/manifest_runtime.json"],
         cwd=root,
         text=True,
         stdout=subprocess.PIPE,

@@ -6,10 +6,10 @@ import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.path_integrity import PathIntegrityError, strict_regular_file
+from app.release.acceptance_challenge import verify_challenge
+from app.release.path_integrity import PathIntegrityError, strict_regular_file
 
 
 class DrillEvidenceError(ValueError):
@@ -78,7 +78,8 @@ def _verify_release_binding(
     challenge = verify_challenge(challenge_path, root=root, require_trust=True)
     if not challenge.get("verified"):
         raise DrillEvidenceError("release challenge is not verified")
-    bound = data.get("release_challenge") if isinstance(data.get("release_challenge"), dict) else {}
+    raw_bound = data.get("release_challenge")
+    bound: dict[str, Any] = raw_bound if isinstance(raw_bound, dict) else {}
     if bound.get("challenge_id") != challenge.get("challenge_id") or bound.get("sha256") != challenge.get("sha256"):
         raise DrillEvidenceError("drill evidence release challenge binding mismatch")
 
@@ -89,7 +90,8 @@ def _verify_release_binding(
         raise DrillEvidenceError("acceptance environment identity is required")
     if not isinstance(expected_topology, str) or len(expected_topology) != 64:
         raise DrillEvidenceError("acceptance topology hash is required")
-    environment = data.get("environment") if isinstance(data.get("environment"), dict) else {}
+    raw_environment = data.get("environment")
+    environment: dict[str, Any] = raw_environment if isinstance(raw_environment, dict) else {}
     if environment.get("acceptance_environment_id_hash") != expected_env:
         raise DrillEvidenceError("drill evidence acceptance environment mismatch")
     if environment.get("topology_hash") != expected_topology:
@@ -99,11 +101,14 @@ def _verify_release_binding(
 def _load_and_verify_common(
     path: Path, *, root: Path, kind: str, max_age_hours: int = 24,
     expected_environment: dict[str, Any] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        loaded: Any = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         raise DrillEvidenceError("evidence must be valid JSON") from exc
+    if not isinstance(loaded, dict):
+        raise DrillEvidenceError("evidence JSON root must be an object")
+    data = cast(dict[str, Any], loaded)
     if data.get("classification") != "REAL_EXTERNAL_ACCEPTANCE_DRILL":
         raise DrillEvidenceError("invalid drill classification")
     if data.get("drill_kind") != kind:

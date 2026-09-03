@@ -10,14 +10,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+BACKEND = ROOT / "backend"
+for import_root in (BACKEND, ROOT):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 REPORTS = ROOT / "reports" / "external_acceptance"
 GIT_PROBE_TIMEOUT_SECONDS = 10
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.evidence_ledger import append_entry
-from backend.app.release.acceptance_contract import PROFILE_TO_GROUPS
+from app.release.acceptance_challenge import verify_challenge
+from app.release.evidence_ledger import append_entry
+from app.release.acceptance_contract import PROFILE_TO_GROUPS
 from scripts.verify_external_acceptance import GROUP_KEYS, verify_manifest
 from scripts.external_acceptance_runner import command_contract_sha256
 from scripts.bounded_subprocess import run_captured_split
@@ -84,11 +86,6 @@ def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
 
     any_real_source = any(v.get("status") == "VERIFIED" for v in sources.values())
     any_pass_group = any(v == "PASS" for v in groups.values())
-    # Aggregate PASS is release-relevant. Re-verify the current challenge with
-    # external trust *before* claiming a real target or appending to the ledger.
-    # Individual profile verification already enforces this, but the merger must
-    # independently fail closed so a mutated/intermediate profile set cannot
-    # create aggregate release metadata under an untrusted challenge.
     if any_pass_group:
         challenge = verify_challenge(reports / "release_challenge.json", root=root, require_trust=True)
         if not challenge.get("verified"):
@@ -127,8 +124,6 @@ def merge(*, root: Path = ROOT, max_age_hours: int = 168) -> dict[str, Any]:
     out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     manifest_sha = _sha(out)
 
-    # Any PASS group makes the aggregate release-relevant. Bind the aggregate itself
-    # into the append-only ledger so verify_manifest can detect replacement/replay.
     if git_sha != "UNAVAILABLE" and not problems and any(v == "PASS" for v in groups.values()) and challenge.get("verified") and challenge.get("trust_verified"):
         append_entry(
             reports / "evidence_ledger.json",

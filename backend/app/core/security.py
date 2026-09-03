@@ -7,13 +7,13 @@ from cryptography.fernet import Fernet
 _ph=PasswordHasher()
 def hash_password(password:str)->str:
     if len(password)<12: raise ValueError('password too short')
-    return _ph.hash(password)
+    return str(_ph.hash(password))
 def verify_password(encoded:str,password:str)->bool:
-    try: return _ph.verify(encoded,password)
+    try: return bool(_ph.verify(encoded,password))
     except Exception: return False
 
 def password_hash_needs_upgrade(encoded:str)->bool:
-    try: return _ph.check_needs_rehash(encoded)
+    try: return bool(_ph.check_needs_rehash(encoded))
     except Exception: return True
 
 def fingerprint(value:str)->str: return hashlib.sha256(value.encode()).hexdigest()[:16]
@@ -21,9 +21,9 @@ def fingerprint(value:str)->str: return hashlib.sha256(value.encode()).hexdigest
 class SecretBox:
     def __init__(self,key:bytes): self.fernet=Fernet(key)
     @staticmethod
-    def generate_key()->bytes: return Fernet.generate_key()
-    def encrypt(self,text:str)->str: return self.fernet.encrypt(text.encode()).decode()
-    def decrypt(self,token:str)->str: return self.fernet.decrypt(token.encode()).decode()
+    def generate_key()->bytes: return bytes(Fernet.generate_key())
+    def encrypt(self,text:str)->str: return str(self.fernet.encrypt(text.encode()).decode())
+    def decrypt(self,token:str)->str: return str(self.fernet.decrypt(token.encode()).decode())
 
 @dataclass(frozen=True)
 class Confirmation:

@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-import backend.app.release.acceptance_challenge as challenge_mod
-from backend.app.release.acceptance_challenge import create_challenge, verify_challenge
-from backend.app.release.acceptance_contract import (
+import app.release.acceptance_challenge as challenge_mod
+from app.release.acceptance_challenge import create_challenge, verify_challenge
+from app.release.acceptance_contract import (
     ACCEPTANCE_CONTRACT_SCHEMA,
     PROFILE_ORDER,
     PROFILE_TO_GROUPS,

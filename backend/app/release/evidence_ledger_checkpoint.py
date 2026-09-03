@@ -8,8 +8,8 @@ import os
 from scripts.bounded_subprocess import run_captured
 from typing import Any
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.evidence_ledger import verify_ledger
+from app.release.acceptance_challenge import verify_challenge
+from app.release.evidence_ledger import verify_ledger
 
 SCHEMA_VERSION = "1.0"
 CLASSIFICATION = "REAL_EXTERNAL_ACCEPTANCE_SIGNED_LEDGER_CHECKPOINT"

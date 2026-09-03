@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from backend.app.release.acceptance_challenge import create_challenge, verify_challenge
-from backend.app.release.campaign_acceptance import CLASSIFICATIONS, verify_campaign_evidence
-from backend.app.release.path_integrity import PathIntegrityError
-from backend.app.release.provenance_signature_evidence import verify_provenance_signature_evidence
+from app.release.acceptance_challenge import create_challenge, verify_challenge
+from app.release.campaign_acceptance import CLASSIFICATIONS, verify_campaign_evidence
+from app.release.path_integrity import PathIntegrityError
+from app.release.provenance_signature_evidence import verify_provenance_signature_evidence
 
 
 def _git(root: Path) -> str:

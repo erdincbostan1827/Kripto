@@ -1,0 +1,63 @@
+name: Backend Full-Tree Type Debt Ratchet
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  MYPY_FULL_TREE_BASELINE: '53'
+
+jobs:
+  mypy-full-tree-debt-ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - name: Install pinned Mypy tooling and locked backend environment
+        run: |
+          python -m pip install 'uv==0.12.9' 'mypy==1.17.1'
+          uv sync --locked --extra test
+      - name: Full backend Mypy debt inventory
+        run: |
+          mkdir -p reports
+          grep -RInE '(^|[[:space:]])(from|import)[[:space:]]+backend\.app' backend/app > reports/BACKEND_APP_IMPORTS.txt || true
+          tar -czf reports/BACKEND_APP_SOURCE.tgz backend/app
+          set +e
+          set -o pipefail
+          MYPYPATH=backend mypy --namespace-packages -p app --ignore-missing-imports 2>&1 | tee reports/MYPY_FULL_TREE.txt
+          mypy_status=${PIPESTATUS[0]}
+          set -e
+          error_count=$(grep -cE ': error:' reports/MYPY_FULL_TREE.txt || true)
+          printf 'mypy_exit_status=%s\nmypy_error_count=%s\nbaseline=%s\n' "$mypy_status" "$error_count" "$MYPY_FULL_TREE_BASELINE" | tee reports/MYPY_FULL_TREE_SUMMARY.txt
+          if [ -s reports/BACKEND_APP_IMPORTS.txt ]; then
+            echo 'backend.app namespace regression detected' >&2
+            exit 1
+          fi
+          if [ "$error_count" -gt "$MYPY_FULL_TREE_BASELINE" ]; then
+            echo "full-tree Mypy debt regressed: ${error_count} > ${MYPY_FULL_TREE_BASELINE}" >&2
+            exit 1
+          fi
+          if [ "$error_count" -lt "$MYPY_FULL_TREE_BASELINE" ]; then
+            echo "full-tree Mypy debt improved: lower baseline from ${MYPY_FULL_TREE_BASELINE} to ${error_count}" >&2
+          fi
+          if [ "$mypy_status" -eq 0 ] && [ "$error_count" -ne 0 ]; then
+            echo 'Mypy returned success while error diagnostics were present' >&2
+            exit 1
+          fi
+      - name: Upload full-tree type-debt evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mypy-full-tree-${{ github.run_id }}
+          path: |
+            reports/MYPY_FULL_TREE.txt
+            reports/MYPY_FULL_TREE_SUMMARY.txt
+            reports/BACKEND_APP_IMPORTS.txt
+            reports/BACKEND_APP_SOURCE.tgz
+          if-no-files-found: ignore

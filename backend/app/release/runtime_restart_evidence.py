@@ -8,8 +8,8 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.path_integrity import PathIntegrityError, strict_regular_file
+from app.release.acceptance_challenge import verify_challenge
+from app.release.path_integrity import PathIntegrityError, strict_regular_file
 
 CLASSIFICATION = "REAL_RUNTIME_RESTART_ACCEPTANCE"
 SCHEMA_VERSION = "1.0"

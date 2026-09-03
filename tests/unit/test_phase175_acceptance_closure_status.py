@@ -43,11 +43,24 @@ def test_phase175_external_requirements_never_become_pass_from_preflight():
     assert payload["blocked_requirement_count"] == payload["open_requirement_count"] - len(ready)
 
 
-def test_phase175_current_environment_exposes_known_hard_blockers():
+def test_phase175_current_environment_exposes_real_hard_blockers():
     payload = build()
     reasons = payload["blocking_reason_counts"]
     assert "group:dependency_locks" not in reasons
-    assert reasons["group:container_runtime"] >= 1
+
+    container_prerequisites = [
+        item
+        for row in payload["requirements"]
+        for item in row["prerequisites"]
+        if item["key"] == "group:container_runtime"
+    ]
+    assert container_prerequisites
+    blocked_container_prerequisites = sum(not item["ready"] for item in container_prerequisites)
+    if blocked_container_prerequisites:
+        assert reasons["group:container_runtime"] == blocked_container_prerequisites
+    else:
+        assert "group:container_runtime" not in reasons
+
     assert reasons["external:real_browser_matrix"] >= 1
     assert reasons["external:trusted_ci_supply_chain_evidence"] >= 1
     assert reasons["external:trusted_ci_provenance"] >= 1
