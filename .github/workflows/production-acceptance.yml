@@ -180,7 +180,15 @@ jobs:
           mkdir -p reports/external_acceptance
           uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
           pip-audit -r reports/external_acceptance/requirements.locked.txt
-          bandit -q -r backend scripts
+          set +e
+          bandit -q -r backend scripts -f json -o reports/external_acceptance/bandit-report.json
+          BANDIT_RC=$?
+          set -e
+          if [ "$BANDIT_RC" -gt 1 ]; then
+            echo "Bandit scanner execution failed with rc=$BANDIT_RC" >&2
+            exit "$BANDIT_RC"
+          fi
+          python scripts/external/verify_bandit_baseline.py reports/external_acceptance/bandit-report.json
           semgrep --config auto --error backend scripts
           docker run --rm -v "$PWD:/repo" "$GITLEAKS_DIGEST" detect --source=/repo --no-git --redact
           docker run --rm -v "$PWD:/repo" "$TRIVY_DIGEST" fs --exit-code 1 --severity HIGH,CRITICAL /repo
@@ -219,6 +227,7 @@ jobs:
             frontend/package-lock.json
             frontend/dist/**
             reports/local_acceptance/**
+            reports/external_acceptance/bandit-report.json
             reports/external_acceptance/sbom.cdx.json
             reports/external_acceptance/dependency_licenses.json
             reports/external_acceptance/supply_chain_artifact_verification.json
