@@ -8,9 +8,13 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'tests/**'
       - 'scripts/local_acceptance_runner.py'
       - 'scripts/merge_local_acceptance.py'
       - 'scripts/verify_local_acceptance.py'
+      - 'scripts/prohibited_scan.py'
+      - 'scripts/secret_scan.py'
+      - 'scripts/local_sast.py'
       - 'scripts/verify_source_locks.py'
       - 'scripts/verify_acceptance_contract_parity.py'
       - 'scripts/verify_workflow_action_pins.py'
@@ -23,9 +27,13 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'tests/**'
       - 'scripts/local_acceptance_runner.py'
       - 'scripts/merge_local_acceptance.py'
       - 'scripts/verify_local_acceptance.py'
+      - 'scripts/prohibited_scan.py'
+      - 'scripts/secret_scan.py'
+      - 'scripts/local_sast.py'
       - 'scripts/verify_source_locks.py'
       - 'scripts/verify_acceptance_contract_parity.py'
       - 'scripts/verify_workflow_action_pins.py'
@@ -184,7 +192,7 @@ jobs:
           }
           target = out / 'HOSTED_PRE_ACCEPTANCE_EVIDENCE.json'
           target.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-          print(f'PHASE224_HOSTED_PRE_ACCEPTANCE_EVIDENCE=PASS')
+          print('PHASE224_HOSTED_PRE_ACCEPTANCE_EVIDENCE=PASS')
           print(f'git_commit_sha={head}')
           print(f'manifest_sha256={sha256(target)}')
           PY
