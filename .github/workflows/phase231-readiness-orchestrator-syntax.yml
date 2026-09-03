@@ -1,0 +1,67 @@
+name: Phase 231 Readiness Orchestrator Syntax
+
+on:
+  pull_request:
+    paths:
+      - 'tools/run_phase231_production_readiness.ps1'
+      - 'tests/test_phase231_readiness_orchestrator_contract.py'
+      - '.github/workflows/phase231-readiness-orchestrator-syntax.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/run_phase231_production_readiness.ps1'
+      - 'tests/test_phase231_readiness_orchestrator_contract.py'
+      - '.github/workflows/phase231-readiness-orchestrator-syntax.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  powershell-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Parse Phase 231 orchestrator with Windows PowerShell
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'tools/run_phase231_production_readiness.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $path,
+            [ref]$tokens,
+            [ref]$errors
+          )
+          $parseErrors = @($errors)
+          if ($parseErrors.Count -ne 0) {
+            foreach ($parseError in $parseErrors) {
+              $line = $parseError.Extent.StartLineNumber
+              $column = $parseError.Extent.StartColumnNumber
+              Write-Error "tools/run_phase231_production_readiness.ps1:${line}:${column} $($parseError.Message)"
+            }
+            throw "PowerShell parser found $($parseErrors.Count) syntax error(s)."
+          }
+          Write-Host 'Phase 231 PowerShell syntax: PASS'
+
+      - name: Verify fail-closed Phase 231 contract
+        shell: powershell
+        run: |
+          $text = Get-Content 'tools/run_phase231_production_readiness.ps1' -Raw
+          $required = @(
+            'resolve_python312_windows.ps1',
+            'candidate_ref=$CandidateRef',
+            'production-runner-readiness-$CandidateRef',
+            '$report.checks.GIT_HEAD.detail -ne $CandidateRef',
+            'production_ready = $false',
+            'PHASE231_READINESS=PASS',
+            'PHASE231_READINESS=FAIL'
+          )
+          foreach ($needle in $required) {
+            if (-not $text.Contains($needle)) {
+              throw "Missing required Phase 231 contract: $needle"
+            }
+          }
+          Write-Host 'Phase 231 fail-closed contract: PASS'
