@@ -1,0 +1,52 @@
+name: Phase 228 Production Runner Probe
+
+on:
+  push:
+    branches:
+      - phase228-production-runner-probe
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase228-production-runner-probe
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  production-runner-probe:
+    runs-on: [self-hosted, production-acceptance]
+    steps:
+      - name: Checkout exact probe commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Prepare compose environment without production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .env.example
+          cp .env.example .env
+
+      - name: Run secret-free production runner readiness
+        run: >-
+          python scripts/production_runner_readiness.py
+          --require-actions-context
+          --output reports/production_acceptance/PRODUCTION_RUNNER_READINESS.json
+
+      - name: Upload runner readiness evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase228-production-runner-readiness-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: reports/production_acceptance/PRODUCTION_RUNNER_READINESS.json
