@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from scripts.verify_production_acceptance_hardening import (
     EXPECTED_BANDIT_REPORT,
     EXPECTED_BANDIT_VERIFY,
@@ -74,3 +76,11 @@ def test_real_target_trust_boundary_cannot_be_removed() -> None:
     text = _valid_workflow_text().replace('ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"', '')
     problems = verify_text(text)
     assert 'MISSING_REQUIRED_INVARIANT:ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"' in problems
+
+
+def test_watchdog_does_not_regress_to_dynamic_urllib() -> None:
+    source = Path('scripts/watchdog_runner.py').read_text(encoding='utf-8')
+    assert 'urllib.request' not in source
+    assert 'import httpx' in source
+    assert 'follow_redirects=False' in source
+    assert 'validate_http_url(' in source
