@@ -69,11 +69,16 @@ jobs:
           Write-Host "Exact candidate identity PASS: $sha"
 
       - name: Prepare compose environment without production credentials
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          test -f .env.example
-          cp .env.example .env
+          if (-not (Test-Path -LiteralPath ".env.example" -PathType Leaf)) {
+            throw "Required .env.example file is missing."
+          }
+          Copy-Item -LiteralPath ".env.example" -Destination ".env" -Force
+          if (-not (Test-Path -LiteralPath ".env" -PathType Leaf)) {
+            throw "Could not prepare secret-free .env from .env.example."
+          }
+          Write-Host "Secret-free compose environment prepared from .env.example."
 
       - name: Secret-free production runner readiness
         run: >-
