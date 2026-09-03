@@ -21,7 +21,11 @@ def test_resolver_requires_exact_version_x64_and_pip() -> None:
     assert "$RequiredPythonVersion = '3.12.10'" in text
     assert "$RequiredPointerBits = 64" in text
     assert "struct.calcsize('P') * 8" in text
-    assert "pip is unavailable" in text
+    assert "$pipOutput = & $candidate -m pip --version" in text
+    assert "$matchingRuntimeWithoutPip = $true" in text
+    assert "was skipped because pip is unavailable" in text
+    assert "pip is unavailable on every matching candidate" in text
+    assert text.index("$pipOutput = & $candidate -m pip --version") < text.index("$selected = (Resolve-Path")
     assert "No production acceptance can proceed" in text
 
 
