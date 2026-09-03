@@ -1,0 +1,252 @@
+name: Phase 224 Hosted Pre-Acceptance Evidence
+
+on:
+  push:
+    branches:
+      - main
+      - phase224-hosted-evidence-readiness
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'tests/**'
+      - 'scripts/local_acceptance_runner.py'
+      - 'scripts/merge_local_acceptance.py'
+      - 'scripts/verify_local_acceptance.py'
+      - 'scripts/prohibited_scan.py'
+      - 'scripts/secret_scan.py'
+      - 'scripts/local_sast.py'
+      - 'scripts/verify_source_locks.py'
+      - 'scripts/verify_acceptance_contract_parity.py'
+      - 'scripts/verify_workflow_action_pins.py'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - '.github/workflows/phase224-hosted-evidence.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'tests/**'
+      - 'scripts/local_acceptance_runner.py'
+      - 'scripts/merge_local_acceptance.py'
+      - 'scripts/verify_local_acceptance.py'
+      - 'scripts/prohibited_scan.py'
+      - 'scripts/secret_scan.py'
+      - 'scripts/local_sast.py'
+      - 'scripts/verify_source_locks.py'
+      - 'scripts/verify_acceptance_contract_parity.py'
+      - 'scripts/verify_workflow_action_pins.py'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - '.github/workflows/phase224-hosted-evidence.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase224-hosted-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '24'
+  UV_VERSION: '0.12.9'
+
+jobs:
+  hosted-pre-acceptance-evidence:
+    name: hosted-pre-acceptance-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install pinned uv
+        run: python -m pip install --disable-pip-version-check "uv==${UV_VERSION}"
+
+      - name: Verify repository acceptance contracts and locks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/verify_workflow_action_pins.py
+          python scripts/verify_acceptance_contract_parity.py
+          python scripts/verify_source_locks.py
+          uv lock --locked
+
+      - name: Install and verify frontend from committed lock
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts
+          npm test
+          npm run build
+          npm audit --audit-level=critical
+
+      - name: Install backend from committed lock
+        run: uv sync --locked --extra test
+
+      - name: Static, secret and local SAST checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python -m compileall -q backend scripts tests
+          uv run python scripts/prohibited_scan.py
+          uv run python scripts/secret_scan.py
+          uv run python scripts/local_sast.py
+
+      - name: Canonical 24-shard local acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf reports/local_acceptance
+          for i in $(seq 0 23); do
+            echo "=== local acceptance shard ${i}/23 ==="
+            uv run python scripts/local_acceptance_runner.py --shard-index "$i" --shard-count 24 --timeout 1200
+          done
+          uv run python scripts/merge_local_acceptance.py --shard-count 24
+          uv run python scripts/verify_local_acceptance.py
+
+      - name: Docker compose build and integration smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/phase224
+          cp .env.example .env
+          docker compose config -q 2>&1 | tee reports/phase224/DOCKER_COMPOSE_CONFIG.txt
+          docker compose --profile test build test app frontend 2>&1 | tee reports/phase224/DOCKER_BUILD.txt
+          docker compose --profile test run --rm test python -m pytest -q -W error -p no:cacheprovider tests/integration/test_health_security_hardening.py 2>&1 | tee reports/phase224/DOCKER_TEST.txt
+
+      - name: Create exact-candidate hosted evidence manifest
+        shell: bash
+        env:
+          PHASE224_RUN_ID: ${{ github.run_id }}
+          PHASE224_RUN_ATTEMPT: ${{ github.run_attempt }}
+          PHASE224_REPOSITORY: ${{ github.repository }}
+          PHASE224_SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path('.')
+          out = root / 'reports' / 'phase224'
+          out.mkdir(parents=True, exist_ok=True)
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          local_dir = root / 'reports' / 'local_acceptance'
+          local_files = sorted(p for p in local_dir.rglob('*') if p.is_file())
+          local_hashes = {p.relative_to(root).as_posix(): sha256(p) for p in local_files}
+          payload = {
+              'schema_version': '1.0',
+              'classification': 'HOSTED_PRE_ACCEPTANCE_EVIDENCE',
+              'verified': True,
+              'git_commit_sha': head,
+              'git_tree_sha': tree,
+              'created_at_utc': datetime.now(timezone.utc).isoformat(),
+              'runner_scope': 'github-hosted-ubuntu',
+              'workflow_run_id': os.environ['PHASE224_RUN_ID'],
+              'workflow_run_attempt': os.environ['PHASE224_RUN_ATTEMPT'],
+              'workflow_run_url': f"{os.environ['PHASE224_SERVER_URL']}/{os.environ['PHASE224_REPOSITORY']}/actions/runs/{os.environ['PHASE224_RUN_ID']}",
+              'locks': {
+                  'uv.lock': sha256(root / 'uv.lock'),
+                  'frontend/package-lock.json': sha256(root / 'frontend' / 'package-lock.json'),
+              },
+              'local_acceptance_file_sha256': local_hashes,
+              'docker_smoke': 'PASS',
+              'truth_boundary': {
+                  'production_live_accepted': False,
+                  'external_acceptance_claimed': False,
+                  'credentialed_testnet_claimed': False,
+                  'pitr_ha_worm_claimed': False,
+                  'trusted_signing_or_provenance_claimed': False,
+                  'real_runtime_restart_acceptance_claimed': False,
+                  'note': 'This manifest proves only GitHub-hosted build/local-acceptance/docker-smoke evidence for the exact candidate. Real external acceptance remains fail-closed.'
+              },
+          }
+          target = out / 'HOSTED_PRE_ACCEPTANCE_EVIDENCE.json'
+          target.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print('PHASE224_HOSTED_PRE_ACCEPTANCE_EVIDENCE=PASS')
+          print(f'git_commit_sha={head}')
+          print(f'manifest_sha256={sha256(target)}')
+          PY
+
+      - name: Enforce fail-closed truth boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+          p = Path('reports/phase224/HOSTED_PRE_ACCEPTANCE_EVIDENCE.json')
+          d = json.loads(p.read_text(encoding='utf-8'))
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          failures = []
+          if d.get('classification') != 'HOSTED_PRE_ACCEPTANCE_EVIDENCE': failures.append('CLASSIFICATION')
+          if d.get('verified') is not True: failures.append('VERIFIED')
+          if d.get('git_commit_sha') != head: failures.append('IDENTITY')
+          b = d.get('truth_boundary', {})
+          for key in (
+              'production_live_accepted',
+              'external_acceptance_claimed',
+              'credentialed_testnet_claimed',
+              'pitr_ha_worm_claimed',
+              'trusted_signing_or_provenance_claimed',
+              'real_runtime_restart_acceptance_claimed',
+          ):
+              if b.get(key) is not False: failures.append(f'TRUTH_BOUNDARY:{key}')
+          if failures:
+              print('\n'.join(failures))
+              raise SystemExit(2)
+          print('PHASE224_FAIL_CLOSED_TRUTH_BOUNDARY=PASS')
+          PY
+
+      - name: Write evidence summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Phase 224 hosted pre-acceptance evidence'
+            echo "- Candidate: \`${GITHUB_SHA}\`"
+            echo '- Scope: locks, frontend build/tests/audit, backend static/security checks, canonical 24-shard local acceptance, Docker build + integration smoke.'
+            echo '- Explicitly excluded: trusted self-hosted runtime/restart acceptance, credentialed TESTNET/live-shadow, PITR/HA/WORM, trusted signing/provenance, PROD LIVE acceptance.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable hosted evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase224-hosted-pre-acceptance-evidence-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            reports/phase224/**
+            reports/local_acceptance/**
+            frontend/dist/**
