@@ -115,7 +115,9 @@ def test_wrong_git_commit_is_rejected(tmp_path: Path) -> None:
 
 
 def test_runner_exposes_worm_profile() -> None:
-    assert build_plan("worm") == [("worm_storage", ["bash", "scripts/external/worm_storage_acceptance.sh"], True)]
+    assert build_plan("worm") == [
+        ("worm_storage", ["python", "scripts/external/run_approved_drill.py", "worm"], True)
+    ]
     assert any(key == "worm_storage" for key, _, _ in build_plan("all"))
 
 
