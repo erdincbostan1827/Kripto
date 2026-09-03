@@ -1,0 +1,331 @@
+name: Phase 245 Binance TESTNET Acceptance
+run-name: Phase 245 Binance TESTNET Acceptance ${{ inputs.candidate_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Exact 40-character commit SHA to validate on the production-acceptance runner
+        required: true
+        type: string
+      symbol:
+        description: Binance Spot TESTNET symbol
+        required: true
+        default: BTCUSDT
+        type: string
+      max_notional:
+        description: TESTNET-only safety cap in quote currency; must be >0 and <=15
+        required: true
+        default: '15'
+        type: string
+      partial_price:
+        description: TESTNET-only limit probe price required to demonstrate a real partial fill
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase245-binance-testnet-acceptance-${{ inputs.candidate_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12.10'
+
+jobs:
+  binance-testnet-acceptance:
+    name: binance-testnet-acceptance
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 90
+    env:
+      ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: '1'
+      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+      BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+      BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
+      BINANCE_TESTNET_EXECUTE: 'YES'
+      BINANCE_TESTNET_SYMBOL: ${{ inputs.symbol }}
+      BINANCE_TESTNET_MAX_NOTIONAL: ${{ inputs.max_notional }}
+      BINANCE_TESTNET_PARTIAL_PRICE: ${{ inputs.partial_price }}
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Setup pinned Python from runner tool cache
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Enforce immutable candidate, source locks and TESTNET parameters
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_REF -notmatch '^[0-9a-fA-F]{40}$') {
+            throw 'candidate_ref must be an exact 40-character commit SHA'
+          }
+          python scripts/validate_acceptance_ref.py $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable candidate validation failed.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -ne $env:CANDIDATE_REF.ToLowerInvariant()) {
+            throw "Checked out SHA mismatch: $head"
+          }
+          python scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+          $symbol = ([string]$env:BINANCE_TESTNET_SYMBOL).Trim().ToUpperInvariant()
+          if ($symbol -notmatch '^[A-Z0-9]{5,20}$') { throw 'Invalid Binance TESTNET symbol.' }
+          $culture = [Globalization.CultureInfo]::InvariantCulture
+          $style = [Globalization.NumberStyles]::Number
+          [decimal]$maxNotional = 0
+          if (-not [decimal]::TryParse(([string]$env:BINANCE_TESTNET_MAX_NOTIONAL), $style, $culture, [ref]$maxNotional)) {
+            throw 'BINANCE_TESTNET_MAX_NOTIONAL must be a decimal number.'
+          }
+          if ($maxNotional -le 0 -or $maxNotional -gt 15) {
+            throw 'BINANCE_TESTNET_MAX_NOTIONAL must be >0 and <=15.'
+          }
+          [decimal]$partialPrice = 0
+          if (-not [decimal]::TryParse(([string]$env:BINANCE_TESTNET_PARTIAL_PRICE), $style, $culture, [ref]$partialPrice)) {
+            throw 'BINANCE_TESTNET_PARTIAL_PRICE must be a decimal number.'
+          }
+          if ($partialPrice -le 0) { throw 'BINANCE_TESTNET_PARTIAL_PRICE must be >0.' }
+          $env:BINANCE_TESTNET_SYMBOL = $symbol
+          "BINANCE_TESTNET_SYMBOL=$symbol" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Enforce TESTNET-only secret scope
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('ACCEPTANCE_CHALLENGE_VERIFY_COMMAND','BINANCE_TESTNET_API_KEY','BINANCE_TESTNET_API_SECRET')) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value)) { throw "Required Phase 245 acceptance input is missing: $name" }
+          }
+          if ($env:BINANCE_TESTNET_EXECUTE -ne 'YES') { throw 'TESTNET execution consent is not exactly YES.' }
+
+      - name: Prepare isolated TESTNET target identity
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $reports = Join-Path $PWD 'reports/external_acceptance'
+          New-Item -ItemType Directory -Force -Path $reports | Out-Null
+          $runtimeEnv = Join-Path $reports 'phase245_runtime.env'
+          Copy-Item -LiteralPath '.env.example' -Destination $runtimeEnv -Force
+
+          if (Test-Path -LiteralPath 'secrets') {
+            throw 'Pre-existing secrets directory detected after clean checkout; refusing to reuse it for Phase 245.'
+          }
+          python scripts/bootstrap_secrets.py
+          if ($LASTEXITCODE -ne 0) { throw 'Ephemeral acceptance secret bootstrap failed.' }
+
+          $shortSha = $env:CANDIDATE_REF.Substring(0, 12).ToLowerInvariant()
+          $projectName = "kripto_phase245_$shortSha"
+          $acceptanceEnvironmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:$projectName"
+
+          $env:COMPOSE_PROJECT_NAME = $projectName
+          $env:APP_ENV_FILE = 'reports/external_acceptance/phase245_runtime.env'
+          $env:ACCEPTANCE_ENVIRONMENT_ID = $acceptanceEnvironmentId
+          "COMPOSE_PROJECT_NAME=$projectName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "APP_ENV_FILE=reports/external_acceptance/phase245_runtime.env" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_ENVIRONMENT_ID=$acceptanceEnvironmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $composeConfig = & docker compose config 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $composeConfig | Out-Host
+            throw 'docker compose config failed for isolated Phase 245 environment.'
+          }
+          $composeConfigPath = Join-Path $reports 'phase245_compose_config.txt'
+          $composeConfig | Set-Content -LiteralPath $composeConfigPath -Encoding utf8
+          $topologyHash = (Get-FileHash -LiteralPath $composeConfigPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          $env:ACCEPTANCE_TOPOLOGY_HASH = $topologyHash
+          "ACCEPTANCE_TOPOLOGY_HASH=$topologyHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $identityDir = Join-Path $PWD 'reports/phase245'
+          New-Item -ItemType Directory -Force -Path $identityDir | Out-Null
+          $identity = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE245_BINANCE_TESTNET_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            compose_project_name = $projectName
+            acceptance_environment_id = $acceptanceEnvironmentId
+            topology_hash = $topologyHash
+            exchange_endpoint = 'https://testnet.binance.vision'
+            symbol = $env:BINANCE_TESTNET_SYMBOL
+            max_notional = $env:BINANCE_TESTNET_MAX_NOTIONAL
+            partial_price = $env:BINANCE_TESTNET_PARTIAL_PRICE
+            truth_policy = 'This identity receipt binds the TESTNET attempt to the exact source, Windows runner and isolated topology. Credentials are never recorded; PASS still requires the hard-pinned Binance Spot TESTNET scenario to succeed.'
+          }
+          $identity | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $identityDir 'BINANCE_TESTNET_TARGET_IDENTITY.json') -Encoding utf8
+
+      - name: Generate fresh release-bound challenge
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/generate_acceptance_challenge.py
+          if ($LASTEXITCODE -ne 0) { throw 'Release challenge generation failed.' }
+
+      - name: Run fail-closed runtime prerequisite
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external_acceptance_runner.py --profile runtime --confirm-real-target --timeout 900
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 245 runtime prerequisite did not PASS.' }
+
+      - name: Run credentialed Binance Spot TESTNET acceptance
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external_acceptance_runner.py --profile testnet --confirm-real-target --timeout 1200
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 245 Binance TESTNET acceptance did not PASS.' }
+
+      - name: Capture Phase 245 result
+        if: always()
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $outDir = Join-Path $PWD 'reports/phase245'
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $runtimePath = Join-Path $PWD 'reports/external_acceptance/manifest_runtime.json'
+          $testnetPath = Join-Path $PWD 'reports/external_acceptance/manifest_testnet.json'
+          $passed = $false
+          $blocker = 'REQUIRED_MANIFEST_MISSING'
+          $runtimeGroup = 'NOT_EVALUATED'
+          $testnetGroup = 'NOT_EVALUATED'
+          $challengeVerified = $false
+          $challengeTrustVerified = $false
+          $endpointVerified = $false
+          $scenarioAllPass = $false
+          $marketOrderPass = $false
+          $limitOrderPass = $false
+          $cancelPass = $false
+          $partialFillPass = $false
+
+          if ((Test-Path -LiteralPath $runtimePath -PathType Leaf) -and (Test-Path -LiteralPath $testnetPath -PathType Leaf)) {
+            $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+            $testnet = Get-Content -LiteralPath $testnetPath -Raw | ConvertFrom-Json
+            if ($null -ne $runtime.groups -and $null -ne $runtime.groups.runtime) { $runtimeGroup = [string]$runtime.groups.runtime }
+            if ($null -ne $testnet.groups -and $null -ne $testnet.groups.testnet) { $testnetGroup = [string]$testnet.groups.testnet }
+            $challengeVerified = ($runtime.challenge.verified -eq $true -and $testnet.challenge.verified -eq $true)
+            $challengeTrustVerified = ($runtime.challenge.trust_verified -eq $true -and $testnet.challenge.trust_verified -eq $true)
+
+            $testnetEvidence = @($testnet.evidence | Where-Object { $_.key -eq 'binance_testnet' }) | Select-Object -First 1
+            if ($null -ne $testnetEvidence -and -not [string]::IsNullOrWhiteSpace([string]$testnetEvidence.artifact)) {
+              $scenarioPath = Join-Path $PWD ([string]$testnetEvidence.artifact)
+              if (Test-Path -LiteralPath $scenarioPath -PathType Leaf) {
+                $scenario = Get-Content -LiteralPath $scenarioPath -Raw | ConvertFrom-Json
+                $endpointVerified = ([string]$scenario.endpoint -eq 'https://testnet.binance.vision')
+                $scenarioAllPass = ($scenario.all_pass -eq $true)
+                $marketOrderPass = ($scenario.checks.market_order.pass -eq $true)
+                $limitOrderPass = ($scenario.checks.limit_order.pass -eq $true)
+                $cancelPass = ($scenario.checks.cancel.pass -eq $true)
+                $partialFillPass = ($scenario.checks.partial_fill.pass -eq $true)
+              }
+            }
+
+            if ($null -ne $testnet.PSObject.Properties['blocker']) {
+              $blocker = [string]$testnet.blocker
+            } elseif ($testnet.selected_all_pass -eq $true) {
+              $blocker = ''
+            } else {
+              $blocker = 'TESTNET_PROFILE_NOT_ALL_PASS'
+            }
+            $passed = (
+              $runtime.classification -eq 'EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE' -and
+              $testnet.classification -eq 'EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE' -and
+              $runtime.profile -eq 'runtime' -and
+              $testnet.profile -eq 'testnet' -and
+              $runtime.environment.git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+              $testnet.environment.git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+              $runtime.real_target_explicitly_confirmed -eq $true -and
+              $testnet.real_target_explicitly_confirmed -eq $true -and
+              $testnet.credentials.binance_testnet -eq 'PRESENT_REDACTED' -and
+              $challengeVerified -and
+              $challengeTrustVerified -and
+              $runtime.selected_all_pass -eq $true -and
+              $testnet.selected_all_pass -eq $true -and
+              $runtimeGroup -eq 'PASS' -and
+              $testnetGroup -eq 'PASS' -and
+              $endpointVerified -and
+              $scenarioAllPass -and
+              $marketOrderPass -and
+              $limitOrderPass -and
+              $cancelPass -and
+              $partialFillPass
+            )
+          }
+
+          $result = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE245_BINANCE_TESTNET_ACCEPTANCE_WORKFLOW_RESULT'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            passed = $passed
+            blocker = $blocker
+            challenge_verified = $challengeVerified
+            challenge_trust_verified = $challengeTrustVerified
+            runtime_group = $runtimeGroup
+            testnet_group = $testnetGroup
+            endpoint_verified = $endpointVerified
+            scenario_all_pass = $scenarioAllPass
+            market_order_pass = $marketOrderPass
+            limit_order_pass = $limitOrderPass
+            cancel_pass = $cancelPass
+            partial_fill_pass = $partialFillPass
+            production_ready = $false
+            live_enabled = $false
+            truth_policy = 'Phase 245 PASS closes only the exact-SHA credentialed Binance Spot TESTNET scenario for this target. TESTNET uses simulated exchange funds and does not authorize real-money LIVE trading or close campaign/signing gates.'
+          }
+          $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outDir 'PHASE245_BINANCE_TESTNET_RESULT.json') -Encoding utf8
+          $result | ConvertTo-Json -Depth 8 | Out-Host
+
+      - name: Tear down isolated TESTNET resources and erase ephemeral secrets
+        if: always()
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if (-not [string]::IsNullOrWhiteSpace($env:COMPOSE_PROJECT_NAME)) {
+            docker compose down -v --remove-orphans
+            if ($LASTEXITCODE -ne 0) { throw 'Phase 245 isolated compose cleanup failed.' }
+          }
+          if (Test-Path -LiteralPath 'secrets') {
+            Remove-Item -LiteralPath 'secrets' -Recurse -Force
+          }
+
+      - name: Upload exact-SHA Phase 245 Binance TESTNET evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase245-binance-testnet-acceptance-${{ inputs.candidate_ref }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            reports/external_acceptance/release_challenge.json
+            reports/external_acceptance/manifest_runtime.json
+            reports/external_acceptance/manifest_testnet.json
+            reports/external_acceptance/evidence_ledger.json
+            reports/external_acceptance/runs/**
+            reports/external_acceptance/phase245_compose_config.txt
+            reports/phase245/**
