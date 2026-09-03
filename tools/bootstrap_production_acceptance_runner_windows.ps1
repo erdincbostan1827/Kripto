@@ -101,7 +101,7 @@ function Provision-PythonToolCache {
             if ($LASTEXITCODE -ne 0) {
                 throw "Cached CPython $PinnedPythonVersion exists but pip validation failed."
             }
-            Write-Host "Runner tool-cache already contains validated CPython $PinnedPythonVersion: $cachedPython"
+            Write-Host "Runner tool-cache already contains validated CPython ${PinnedPythonVersion}: $cachedPython"
             return
         }
         throw "Runner tool-cache complete marker exists but cached Python identity is invalid: $cachedPython"
