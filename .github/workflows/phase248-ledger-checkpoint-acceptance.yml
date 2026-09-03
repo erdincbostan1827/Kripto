@@ -1,0 +1,292 @@
+name: Phase 248 Ledger Checkpoint Acceptance
+run-name: Phase 248 Ledger Checkpoint Acceptance ${{ inputs.candidate_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Exact 40-character commit SHA whose returned external evidence is being checkpointed
+        required: true
+        type: string
+      return_bundle_path:
+        description: Absolute path on the production-acceptance runner to EXTERNAL_ACCEPTANCE_RETURN.zip
+        required: true
+        type: string
+      return_bundle_sha256:
+        description: Expected lowercase SHA-256 of the external acceptance return bundle
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase248-ledger-checkpoint-${{ inputs.candidate_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12.10'
+
+jobs:
+  ledger-checkpoint-acceptance:
+    name: ledger-checkpoint-acceptance
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 90
+    env:
+      ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: '1'
+      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+      LEDGER_CHECKPOINT_SIGN_COMMAND: ${{ secrets.LEDGER_CHECKPOINT_SIGN_COMMAND }}
+      ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND }}
+      ACCEPTANCE_ENVIRONMENT_ID: ${{ vars.ACCEPTANCE_ENVIRONMENT_ID }}
+      ACCEPTANCE_TOPOLOGY_HASH: ${{ vars.ACCEPTANCE_TOPOLOGY_HASH }}
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Setup pinned Python from runner tool cache
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Enforce immutable candidate and ledger-only secret scope
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          RETURN_BUNDLE_PATH: ${{ inputs.return_bundle_path }}
+          RETURN_BUNDLE_SHA256: ${{ inputs.return_bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_REF -notmatch '^[0-9a-fA-F]{40}$') { throw 'candidate_ref must be an exact 40-character commit SHA' }
+          if ($env:RETURN_BUNDLE_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'return_bundle_sha256 must be an exact SHA-256 digest' }
+          if (-not [IO.Path]::IsPathFullyQualified($env:RETURN_BUNDLE_PATH)) { throw 'return_bundle_path must be absolute on the production-acceptance runner' }
+          if (-not (Test-Path -LiteralPath $env:RETURN_BUNDLE_PATH -PathType Leaf)) { throw 'external acceptance return bundle is not present on the runner' }
+          foreach ($name in @('ACCEPTANCE_CHALLENGE_VERIFY_COMMAND','LEDGER_CHECKPOINT_SIGN_COMMAND','ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND','ACCEPTANCE_ENVIRONMENT_ID','ACCEPTANCE_TOPOLOGY_HASH')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Required Phase 248 input is missing: $name" }
+          }
+          if ($env:ACCEPTANCE_TOPOLOGY_HASH -notmatch '^[0-9a-fA-F]{64}$') { throw 'ACCEPTANCE_TOPOLOGY_HASH must be a SHA-256 digest' }
+          python scripts/validate_acceptance_ref.py $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable candidate validation failed.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw "Checked out SHA mismatch: $head" }
+          python scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+      - name: Verify exact return bundle transport
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          RETURN_BUNDLE_PATH: ${{ inputs.return_bundle_path }}
+          RETURN_BUNDLE_SHA256: ${{ inputs.return_bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $actual = (Get-FileHash -LiteralPath $env:RETURN_BUNDLE_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:RETURN_BUNDLE_SHA256.ToLowerInvariant()) { throw 'External acceptance return bundle SHA-256 mismatch.' }
+          python scripts/external/acceptance_return_bundle.py verify $env:RETURN_BUNDLE_PATH --expected-git-sha $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'External acceptance return transport verification failed.' }
+          New-Item -ItemType Directory -Force -Path 'reports/phase248' | Out-Null
+          $transport = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE248_RETURN_BUNDLE_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            bundle_sha256 = $actual
+            bundle_path_is_absolute = $true
+            production_ready = $false
+            live_enabled = $false
+          }
+          $transport | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath 'reports/phase248/RETURN_BUNDLE_IDENTITY.json' -Encoding utf8
+
+      - name: Stage and atomically promote returned external evidence
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          RETURN_BUNDLE_PATH: ${{ inputs.return_bundle_path }}
+          RETURN_BUNDLE_SHA256: ${{ inputs.return_bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $stagingRoot = [IO.Path]::GetFullPath('reports/phase248/incoming')
+          New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
+          python scripts/external/acceptance_return_bundle.py stage $env:RETURN_BUNDLE_PATH --staging-root $stagingRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Return bundle staging failed.' }
+          $staged = Join-Path $stagingRoot $env:RETURN_BUNDLE_SHA256.ToLowerInvariant()
+          $manifestPath = Join-Path $staged 'ACCEPTANCE_RETURN_MANIFEST.json'
+          if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Staged return manifest is missing.' }
+          $returnManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          $preSigned = @($returnManifest.files | Where-Object { ([string]$_.path) -match '(?i)ledger_checkpoint' })
+          if ($preSigned.Count -gt 0) { throw 'Phase 248 requires a pre-checkpoint return bundle; pre-signed ledger checkpoint artifacts are forbidden.' }
+          $assessJson = (& python scripts/external/acceptance_return_promotion.py assess $staged --max-age-hours 168) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "Return bundle semantic assessment failed.`n$assessJson" }
+          $assessJson | Set-Content -LiteralPath 'reports/phase248/RETURN_PROMOTION_ASSESSMENT.json' -Encoding utf8
+          $assessment = $assessJson | ConvertFrom-Json
+          if ($assessment.verified -ne $true) { throw 'Return bundle semantic assessment is not verified.' }
+          $promotionJson = (& python scripts/external/acceptance_return_promotion.py promote $staged --confirm-source-sha $env:CANDIDATE_REF --max-age-hours 168) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "Return bundle promotion failed.`n$promotionJson" }
+          $promotionJson | Set-Content -LiteralPath 'reports/phase248/RETURN_PROMOTION_RESULT.json' -Encoding utf8
+          $promotion = $promotionJson | ConvertFrom-Json
+          if ($promotion.verified -ne $true -or $promotion.promoted -ne $true -or $promotion.rolled_back -eq $true) { throw 'Return bundle promotion did not commit atomically.' }
+          if (-not (Test-Path -LiteralPath 'reports/external_acceptance/evidence_ledger.json' -PathType Leaf)) { throw 'Promoted evidence ledger is missing.' }
+          if (Test-Path -LiteralPath 'reports/external_acceptance/evidence_ledger_checkpoint.json' -PathType Leaf) { throw 'A checkpoint unexpectedly existed before Phase 248 signing.' }
+
+      - name: Bind checkpoint runner identity
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          RETURN_BUNDLE_SHA256: ${{ inputs.return_bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $sha = [System.Security.Cryptography.SHA256]::Create()
+          try {
+            $envHash = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($env:ACCEPTANCE_ENVIRONMENT_ID)))).Replace('-','').ToLowerInvariant()
+          } finally { $sha.Dispose() }
+          $identity = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE248_LEDGER_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            return_bundle_sha256 = $env:RETURN_BUNDLE_SHA256.ToLowerInvariant()
+            acceptance_environment_id_hash = $envHash
+            topology_hash = $env:ACCEPTANCE_TOPOLOGY_HASH.ToLowerInvariant()
+            production_ready = $false
+            live_enabled = $false
+            truth_policy = 'This identifies the Phase 248 checkpoint validation target only. It does not authorize LIVE trading.'
+          }
+          $identity | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase248/LEDGER_TARGET_IDENTITY.json' -Encoding utf8
+
+      - name: Create and externally verify signed ledger checkpoint
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/ledger_checkpoint_sign_verify.py
+          if ($LASTEXITCODE -ne 0) { throw 'Signed ledger checkpoint creation/verification failed.' }
+          @'
+          import hashlib
+          import json
+          import shutil
+          from pathlib import Path
+          from backend.app.release.evidence_ledger_checkpoint import DEFAULT_PATH
+          from scripts.external.verify_ledger_checkpoint import verify_with_external_trust
+
+          root = Path.cwd().resolve()
+          checkpoint = (root / DEFAULT_PATH).resolve()
+          result = verify_with_external_trust(checkpoint)
+          out = root / 'reports' / 'phase248' / 'LEDGER_CHECKPOINT_VERIFICATION.json'
+          out.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          if result.get('verified') is not True or result.get('trust_verified') is not True:
+              raise SystemExit(2)
+          doc = json.loads(checkpoint.read_text(encoding='utf-8'))
+          rel = doc.get('signature_artifact')
+          if not isinstance(rel, str) or not rel:
+              raise SystemExit(2)
+          signature = (root / rel).resolve()
+          signature.relative_to(root)
+          if not signature.is_file():
+              raise SystemExit(2)
+          expected = str(doc.get('signature_sha256', '')).lower()
+          actual = hashlib.sha256(signature.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(2)
+          shutil.copyfile(signature, root / 'reports' / 'phase248' / 'LEDGER_CHECKPOINT_SIGNATURE.bin')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Independent ledger checkpoint verification failed.' }
+
+      - name: Capture Phase 248 result
+        if: always()
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+          RETURN_BUNDLE_PATH: ${{ inputs.return_bundle_path }}
+          RETURN_BUNDLE_SHA256: ${{ inputs.return_bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'reports/phase248' | Out-Null
+          $passed = $false
+          $blocker = 'REQUIRED_PHASE248_EVIDENCE_MISSING'
+          $checkpointPath = 'reports/external_acceptance/evidence_ledger_checkpoint.json'
+          $verifyPath = 'reports/phase248/LEDGER_CHECKPOINT_VERIFICATION.json'
+          $identityPath = 'reports/phase248/LEDGER_TARGET_IDENTITY.json'
+          $promotionPath = 'reports/phase248/RETURN_PROMOTION_RESULT.json'
+          $transportPath = 'reports/phase248/RETURN_BUNDLE_IDENTITY.json'
+          if ((Test-Path $checkpointPath -PathType Leaf) -and (Test-Path $verifyPath -PathType Leaf) -and (Test-Path $identityPath -PathType Leaf) -and (Test-Path $promotionPath -PathType Leaf) -and (Test-Path $transportPath -PathType Leaf)) {
+            $checkpoint = Get-Content $checkpointPath -Raw | ConvertFrom-Json
+            $verification = Get-Content $verifyPath -Raw | ConvertFrom-Json
+            $identity = Get-Content $identityPath -Raw | ConvertFrom-Json
+            $promotion = Get-Content $promotionPath -Raw | ConvertFrom-Json
+            $transport = Get-Content $transportPath -Raw | ConvertFrom-Json
+            $bundleAfter = (Get-FileHash -LiteralPath $env:RETURN_BUNDLE_PATH -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($bundleAfter -ne $env:RETURN_BUNDLE_SHA256.ToLowerInvariant()) { $blocker = 'RETURN_BUNDLE_CHANGED_DURING_RUN' }
+            else {
+              $passed = (
+                $transport.bundle_sha256 -eq $bundleAfter -and
+                $transport.candidate_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+                $promotion.verified -eq $true -and
+                $promotion.promoted -eq $true -and
+                $promotion.rolled_back -ne $true -and
+                $identity.candidate_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+                $identity.runner_os -eq 'Windows' -and
+                $identity.production_ready -eq $false -and
+                $identity.live_enabled -eq $false -and
+                $checkpoint.git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+                $checkpoint.real_system -eq $true -and
+                $checkpoint.executed -eq $true -and
+                $checkpoint.signature_verified -eq $true -and
+                $checkpoint.environment.acceptance_environment_id_hash -eq $identity.acceptance_environment_id_hash -and
+                $checkpoint.environment.topology_hash -eq $identity.topology_hash -and
+                $verification.verified -eq $true -and
+                $verification.trust_verified -eq $true -and
+                $verification.ledger_head_hash -eq $checkpoint.ledger_head_hash -and
+                [int64]$verification.ledger_entries -eq [int64]$checkpoint.ledger_entries
+              )
+              if ($passed) { $blocker = '' } else { $blocker = 'LEDGER_CHECKPOINT_BINDING_NOT_ALL_PASS' }
+            }
+          }
+          $result = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE248_LEDGER_CHECKPOINT_WORKFLOW_RESULT'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            passed = $passed
+            blocker = $blocker
+            return_bundle_sha256 = $env:RETURN_BUNDLE_SHA256.ToLowerInvariant()
+            production_ready = $false
+            live_enabled = $false
+            truth_policy = 'Phase 248 PASS closes only the signed evidence-ledger checkpoint for this exact candidate and returned evidence set. Final merged acceptance and LIVE authorization remain separate gates.'
+          }
+          $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase248/PHASE248_LEDGER_RESULT.json' -Encoding utf8
+          $result | ConvertTo-Json -Depth 8 | Out-Host
+
+      - name: Upload exact-SHA Phase 248 ledger evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase248-ledger-checkpoint-${{ inputs.candidate_ref }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            reports/external_acceptance/release_challenge.json
+            reports/external_acceptance/evidence_ledger.json
+            reports/external_acceptance/evidence_ledger_checkpoint.json
+            reports/phase248/**
+
+      - name: Enforce Phase 248 PASS
+        if: always()
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -LiteralPath 'reports/phase248/PHASE248_LEDGER_RESULT.json' -PathType Leaf)) { throw 'Phase 248 result is missing.' }
+          $result = Get-Content -LiteralPath 'reports/phase248/PHASE248_LEDGER_RESULT.json' -Raw | ConvertFrom-Json
+          if ($result.passed -ne $true) { throw "Phase 248 ledger checkpoint did not PASS: $($result.blocker)" }
