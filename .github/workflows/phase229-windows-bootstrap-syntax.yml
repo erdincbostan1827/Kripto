@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
       - 'tools/resolve_python312_windows.ps1'
+      - 'tools/run_phase250_final_production_acceptance.ps1'
       - 'tests/test_windows_production_runner_bootstrap_contract.py'
       - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
       - '.github/workflows/production-runner-readiness.yml'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
       - 'tools/resolve_python312_windows.ps1'
+      - 'tools/run_phase250_final_production_acceptance.ps1'
       - 'tests/test_windows_production_runner_bootstrap_contract.py'
       - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
       - '.github/workflows/production-runner-readiness.yml'
@@ -35,7 +37,8 @@ jobs:
         run: |
           $paths = @(
             'tools/bootstrap_production_acceptance_runner_windows.ps1',
-            'tools/resolve_python312_windows.ps1'
+            'tools/resolve_python312_windows.ps1',
+            'tools/run_phase250_final_production_acceptance.ps1'
           )
           foreach ($relativePath in $paths) {
             $tokens = $null
