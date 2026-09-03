@@ -244,8 +244,22 @@ try {
     if ($orchestration.challenge_verification.verified -ne $true -or $orchestration.challenge_verification.trust_verified -ne $true) { throw "Release challenge external trust is not verified." }
     if ($orchestration.merge.selected_all_pass -ne $true) { throw "Merged external acceptance is not all PASS." }
     if ($orchestration.verification.verified -ne $true -or $orchestration.verification.selected_all_pass -ne $true) { throw "Merged external acceptance verification is not all PASS." }
-    if ([int]$orchestration.release_manifest.exit_code -ne 0 -or [int]$orchestration.release_gate.exit_code -ne 0) { throw "Release manifest or release gate command failed inside orchestration." }
-    if ([int]$orchestration.ledger_checkpoint.exit_code -ne 0) { throw "Final production acceptance ledger checkpoint signing/verification did not PASS." }
+
+    $releaseManifestResult = Get-PropertyValue -Object $orchestration -Name "release_manifest"
+    $releaseManifestExit = Get-PropertyValue -Object $releaseManifestResult -Name "exit_code"
+    if ($null -eq $releaseManifestExit -or [int]$releaseManifestExit -ne 0) {
+        throw "Release manifest command is missing a successful exit code inside orchestration."
+    }
+    $releaseGateResult = Get-PropertyValue -Object $orchestration -Name "release_gate"
+    $releaseGateExit = Get-PropertyValue -Object $releaseGateResult -Name "exit_code"
+    if ($null -eq $releaseGateExit -or [int]$releaseGateExit -ne 0) {
+        throw "Release gate command is missing a successful exit code inside orchestration."
+    }
+    $ledgerCheckpointResult = Get-PropertyValue -Object $orchestration -Name "ledger_checkpoint"
+    $ledgerCheckpointExit = Get-PropertyValue -Object $ledgerCheckpointResult -Name "exit_code"
+    if ($null -eq $ledgerCheckpointExit -or [int]$ledgerCheckpointExit -ne 0) {
+        throw "Final production acceptance ledger checkpoint signing/verification is missing a successful exit code."
+    }
 
     foreach ($profile in $RequiredProfiles) {
         $profileProperty = $orchestration.profiles.PSObject.Properties[$profile]
