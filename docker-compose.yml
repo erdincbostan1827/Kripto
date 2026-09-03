@@ -30,7 +30,7 @@ services:
 
   app:
     build: {context: ., dockerfile: backend/Dockerfile, target: runtime}
-    env_file: [.env]
+    env_file: ["${APP_ENV_FILE:-.env}"]
     environment:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       APP_ENCRYPTION_KEY_FILE: /run/secrets/app_encryption_key
@@ -101,7 +101,7 @@ services:
 
   watchdog:
     build: {context: ., dockerfile: backend/Dockerfile, target: runtime}
-    env_file: [.env]
+    env_file: ["${APP_ENV_FILE:-.env}"]
     environment:
       HEARTBEAT_HMAC_KEY_FILE: /run/secrets/heartbeat_hmac_key
       BACKUP_ENCRYPTION_KEY_FILE: /run/secrets/backup_encryption_key
