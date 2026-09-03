@@ -28,10 +28,9 @@ jobs:
           ref: ${{ github.event.inputs.candidate_ref }}
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Resolve and validate host Python 3.12
+        shell: powershell
+        run: .\tools\resolve_python312_windows.ps1 -AddToGitHubPath
 
       - name: Enforce immutable candidate ref
         run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"
