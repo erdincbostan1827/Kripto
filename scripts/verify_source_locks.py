@@ -43,6 +43,27 @@ def _repository_identity(root: Path) -> tuple[bool, str | None, str | None]:
     return True, sha, None
 
 
+def _blob_oid(proc: subprocess.CompletedProcess[bytes]) -> str | None:
+    if proc.returncode != 0:
+        return None
+    oid = proc.stdout.decode("ascii", errors="ignore").strip()
+    return oid if len(oid) in (40, 64) else None
+
+
+def _canonical_git_blob_identity(root: Path, rel: str) -> tuple[str | None, str | None]:
+    """Return HEAD and working-tree blob ids after Git clean filters.
+
+    Git for Windows may materialize text files with CRLF even when the committed
+    blob uses LF. ``git hash-object --filters`` applies the same clean/filter
+    rules Git would use when staging the path, so harmless checkout EOL
+    conversion does not become a false source-lock mutation. Any substantive
+    content change still produces a different blob id and fails closed.
+    """
+    head_blob = _blob_oid(_git(root, "rev-parse", f"HEAD:{rel}"))
+    working_blob = _blob_oid(_git(root, "hash-object", "--filters", f"--path={rel}", rel))
+    return head_blob, working_blob
+
+
 def verify_source_locks(root: Path = ROOT) -> dict:
     rows: list[dict] = []
     problems: list[str] = []
@@ -68,6 +89,8 @@ def verify_source_locks(root: Path = ROOT) -> dict:
         package_manifest_bound = False
         working_sha = _sha256(path.read_bytes()) if exists else None
         head_sha = None
+        head_blob_oid = None
+        working_blob_oid = None
 
         if exists and repository_verified:
             tracked_check = _git(root, "ls-files", "--error-unmatch", "--", rel)
@@ -75,9 +98,9 @@ def verify_source_locks(root: Path = ROOT) -> dict:
         if tracked:
             head = _git(root, "show", f"HEAD:{rel}")
             if head.returncode == 0:
-                head_bytes = head.stdout
-                head_sha = _sha256(head_bytes)
-                matches_head = path.read_bytes() == head_bytes
+                head_sha = _sha256(head.stdout)
+            head_blob_oid, working_blob_oid = _canonical_git_blob_identity(root, rel)
+            matches_head = bool(head_blob_oid and working_blob_oid and head_blob_oid == working_blob_oid)
         elif exists and identity_mode == "PACKAGE_MANIFEST":
             entry = manifest_entries.get(rel)
             if isinstance(entry, dict):
@@ -102,6 +125,9 @@ def verify_source_locks(root: Path = ROOT) -> dict:
             "exists": exists,
             "tracked": tracked,
             "matches_head": matches_head,
+            "comparison_mode": "GIT_CANONICAL_BLOB" if tracked else identity_mode,
+            "head_blob_oid": head_blob_oid,
+            "working_tree_blob_oid": working_blob_oid,
             "package_manifest_bound": package_manifest_bound,
             "working_tree_sha256": working_sha,
             "head_sha256": head_sha,
@@ -127,7 +153,7 @@ def main() -> int:
     for row in result["locks"]:
         print(
             f"{row['path']} tracked={row['tracked']} matches_head={row['matches_head']} "
-            f"sha256={row['working_tree_sha256']}"
+            f"comparison_mode={row['comparison_mode']} sha256={row['working_tree_sha256']}"
         )
     for problem in result["problems"]:
         print(f"- {problem}")
