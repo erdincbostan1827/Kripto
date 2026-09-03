@@ -1,4 +1,5 @@
 name: Production Runner Readiness
+run-name: Production Runner Readiness ${{ inputs.candidate_ref }}
 
 on:
   workflow_dispatch:
