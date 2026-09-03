@@ -56,7 +56,6 @@ def test_phase238_workflow_uses_isolated_runtime_inputs_without_source_dirty_env
     assert "Copy-Item -LiteralPath '.env.example' -Destination $runtimeEnv -Force" in text
     assert "Pre-existing secrets directory detected after clean checkout" in text
     assert "python scripts/bootstrap_secrets.py" in text
-    assert 'COMPOSE_PROJECT_NAME = $projectName' not in text  # env assignment must use process env + GITHUB_ENV
     assert "$env:COMPOSE_PROJECT_NAME = $projectName" in text
     assert "$env:APP_ENV_FILE = 'reports/external_acceptance/runtime.env'" in text
     assert "docker compose config" in text
