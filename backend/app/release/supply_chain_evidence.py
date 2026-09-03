@@ -1,13 +1,33 @@
 from __future__ import annotations
 
 import json
+import re
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+_SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+
 
 def _sha(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
+
+
+def _valid_sha256_hashes(component: dict[str, Any]) -> list[str]:
+    hashes = component.get("hashes")
+    if not isinstance(hashes, list):
+        return []
+    values: list[str] = []
+    for item in hashes:
+        if not isinstance(item, dict):
+            continue
+        algorithm = str(item.get("alg") or "").strip().upper().replace("_", "-")
+        if algorithm not in {"SHA-256", "SHA256"}:
+            continue
+        content = str(item.get("content") or "").strip()
+        if _SHA256_RE.fullmatch(content):
+            values.append(content.lower())
+    return values
 
 
 def verify_cyclonedx_sbom(path: Path) -> dict[str, Any]:
@@ -33,7 +53,20 @@ def verify_cyclonedx_sbom(path: Path) -> dict[str, Any]:
             continue
         if not str(item.get("name") or "").strip():
             problems.append(f"SBOM_COMPONENT_NAME_MISSING:{idx}")
-        if not str(item.get("version") or "").strip():
+
+        component_type = str(item.get("type") or "").strip().lower()
+        if component_type == "file":
+            bom_ref = str(item.get("bom-ref") or "").strip()
+            if not bom_ref:
+                problems.append(f"SBOM_FILE_BOM_REF_MISSING:{idx}")
+            sha256_values = _valid_sha256_hashes(item)
+            if not sha256_values:
+                problems.append(f"SBOM_FILE_SHA256_MISSING:{idx}")
+            elif bom_ref.lower().startswith("filesha256:"):
+                referenced_digest = bom_ref.split(":", 1)[1].strip().lower()
+                if referenced_digest not in sha256_values:
+                    problems.append(f"SBOM_FILE_BOM_REF_HASH_MISMATCH:{idx}")
+        elif not str(item.get("version") or "").strip():
             problems.append(f"SBOM_COMPONENT_VERSION_MISSING:{idx}")
     return {
         "verified": not problems,
