@@ -1,4 +1,9 @@
-from scripts.verify_production_acceptance_hardening import EXPECTED_SCANNERS, EXPECTED_UV, verify_text
+from scripts.verify_production_acceptance_hardening import (
+    EXPECTED_RUNTIME_BUILD,
+    EXPECTED_SCANNERS,
+    EXPECTED_UV,
+    verify_text,
+)
 
 
 def _valid_workflow_text() -> str:
@@ -8,6 +13,8 @@ def _valid_workflow_text() -> str:
             EXPECTED_SCANNERS,
             'REPOSITORY_LC="${GITHUB_REPOSITORY,,}"',
             'IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"',
+            EXPECTED_RUNTIME_BUILD,
+            'uv export --locked --no-dev --no-emit-project --format requirements-txt',
             'runs-on: [self-hosted, production-acceptance]',
             'environment: production-acceptance',
             'ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"',
@@ -39,6 +46,16 @@ def test_mixed_case_repository_expression_is_rejected() -> None:
     problems = verify_text(text)
     assert any(item.startswith('MISSING_REQUIRED_INVARIANT:REPOSITORY_LC=') for item in problems)
     assert any(item.startswith('FORBIDDEN_REGRESSION:IMAGE=') for item in problems)
+
+
+def test_root_dockerfile_build_regression_is_rejected() -> None:
+    text = _valid_workflow_text().replace(
+        EXPECTED_RUNTIME_BUILD,
+        'docker build -t "$ACCEPTANCE_CONTAINER_IMAGE" .',
+    )
+    problems = verify_text(text)
+    assert any(item.startswith('MISSING_REQUIRED_INVARIANT:docker build --file backend/Dockerfile') for item in problems)
+    assert any(item.startswith('FORBIDDEN_REGRESSION:docker build -t') for item in problems)
 
 
 def test_real_target_trust_boundary_cannot_be_removed() -> None:
