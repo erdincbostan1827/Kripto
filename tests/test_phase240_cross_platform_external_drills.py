@@ -126,6 +126,11 @@ def test_approved_process_output_redacts_known_secret_env(monkeypatch: pytest.Mo
     assert "[REDACTED]" in captured
 
 
-def test_launcher_source_never_uses_subprocess_shell_true() -> None:
+def test_launcher_subprocess_safety_suppressions_are_narrow_and_reviewed() -> None:
     source = Path(drill.__file__).read_text(encoding="utf-8")
     assert "shell=True" not in source
+    nosec_lines = [line.strip() for line in source.splitlines() if "nosec" in line]
+    assert len(nosec_lines) == 2
+    assert any("nosec B404" in line for line in nosec_lines)
+    assert any("nosec B603" in line for line in nosec_lines)
+    assert all("nosec B404" in line or "nosec B603" in line for line in nosec_lines)
