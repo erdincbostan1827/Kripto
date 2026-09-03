@@ -4,15 +4,21 @@ on:
   pull_request:
     paths:
       - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
+      - 'tools/resolve_python312_windows.ps1'
       - 'tests/test_windows_production_runner_bootstrap_contract.py'
       - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
+      - '.github/workflows/production-runner-readiness.yml'
+      - '.github/workflows/production-acceptance.yml'
   push:
     branches:
       - main
     paths:
       - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
+      - 'tools/resolve_python312_windows.ps1'
       - 'tests/test_windows_production_runner_bootstrap_contract.py'
       - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
+      - '.github/workflows/production-runner-readiness.yml'
+      - '.github/workflows/production-acceptance.yml'
 
 permissions:
   contents: read
@@ -24,33 +30,43 @@ jobs:
       - name: Checkout exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Parse bootstrap with Windows PowerShell
+      - name: Parse Windows PowerShell scripts
         shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          $path = (Resolve-Path 'tools/bootstrap_production_acceptance_runner_windows.ps1').Path
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            $path,
-            [ref]$tokens,
-            [ref]$errors
+          $paths = @(
+            'tools/bootstrap_production_acceptance_runner_windows.ps1',
+            'tools/resolve_python312_windows.ps1'
           )
-          if ($errors.Count -ne 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "PowerShell parser found $($errors.Count) syntax error(s)."
+          foreach ($relativePath in $paths) {
+            $tokens = $null
+            $errors = $null
+            $path = (Resolve-Path $relativePath).Path
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -ne 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell parser found $($errors.Count) syntax error(s) in $relativePath."
+            }
+            Write-Host "PowerShell syntax PASS: $relativePath"
           }
-          Write-Host 'PowerShell syntax: PASS'
 
       - name: Verify fail-closed bootstrap contract
         shell: powershell
         run: |
           $text = Get-Content 'tools/bootstrap_production_acceptance_runner_windows.ps1' -Raw
+          $resolver = Get-Content 'tools/resolve_python312_windows.ps1' -Raw
+          $readiness = Get-Content '.github/workflows/production-runner-readiness.yml' -Raw
           $required = @(
             '$RunnerVersion = "2.337.0"',
             '$RunnerSha256 = "1150692afa94e71f872017e254ea55b6eece1eece3fe7e3a6d4c93d0a1b85cfc"',
             'actions/runners/registration-token',
             'production-acceptance',
             'Get-FileHash -Algorithm SHA256',
+            'Existing runner configuration detected and will be reused',
+            'resolve_python312_windows.ps1',
             'No production-ready/LIVE claim is made by this bootstrap.'
           )
           foreach ($needle in $required) {
@@ -58,7 +74,24 @@ jobs:
               throw "Missing required bootstrap contract: $needle"
             }
           }
+          if ($text.Contains('Remove the old runner registration first')) {
+            throw 'Bootstrap must reuse an already configured runner instead of forcing destructive removal.'
+          }
           if ($text.Contains('gh secret set $name --env $EnvironmentName --repo $Repository --body')) {
             throw 'Protected secret values must not be passed through --body by the bootstrap.'
           }
-          Write-Host 'Fail-closed bootstrap contract: PASS'
+          $resolverRequired = @(
+            'Python.Python.3.12',
+            '^3\.12\.\d+$',
+            'GITHUB_PATH',
+            'No production acceptance can proceed'
+          )
+          foreach ($needle in $resolverRequired) {
+            if (-not $resolver.Contains($needle)) {
+              throw "Missing required Python resolver contract: $needle"
+            }
+          }
+          if (-not $readiness.Contains('.\tools\resolve_python312_windows.ps1 -AddToGitHubPath')) {
+            throw 'Production Runner Readiness must use the validated host Python resolver.'
+          }
+          Write-Host 'Fail-closed bootstrap/Python contract: PASS'
