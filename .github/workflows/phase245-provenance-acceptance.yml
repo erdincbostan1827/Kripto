@@ -1,0 +1,349 @@
+name: Phase 245 Provenance Acceptance
+run-name: Phase 245 Provenance Acceptance ${{ inputs.candidate_ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Exact 40-character commit SHA to validate on the production-acceptance runner
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: phase245-provenance-acceptance-${{ inputs.candidate_ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12.10'
+  NODE_VERSION: '24'
+
+jobs:
+  locate-phase225-evidence:
+    name: locate-phase225-evidence
+    runs-on: ubuntu-latest
+    outputs:
+      phase225_run_id: ${{ steps.locate.outputs.phase225_run_id }}
+      artifact_name: ${{ steps.locate.outputs.artifact_name }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Validate exact candidate and source locks
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          set -euo pipefail
+          case "$CANDIDATE_REF" in
+            [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;;
+            *) echo 'candidate_ref must be an exact 40-character commit SHA' >&2; exit 2 ;;
+          esac
+          python scripts/validate_acceptance_ref.py "$CANDIDATE_REF"
+          test "$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$CANDIDATE_REF" | tr '[:upper:]' '[:lower:]')"
+          python scripts/verify_source_locks.py
+
+      - name: Locate successful exact-SHA Phase 225 artifact
+        id: locate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/phase245
+          gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow "Phase 225 Production Build Evidence" \
+            --commit "$CANDIDATE_REF" \
+            --status success \
+            --limit 50 \
+            --json databaseId,headSha,conclusion,createdAt,event \
+            > reports/phase245/phase225_runs.json
+          export RUNS_PATH='reports/phase245/phase225_runs.json'
+          RUN_ID="$(python - <<'PY'
+          import json, os
+          from pathlib import Path
+          candidate = os.environ['CANDIDATE_REF'].lower()
+          runs = json.loads(Path(os.environ['RUNS_PATH']).read_text(encoding='utf-8'))
+          matches = [r for r in runs if str(r.get('headSha', '')).lower() == candidate and r.get('conclusion') == 'success']
+          matches.sort(key=lambda r: str(r.get('createdAt', '')), reverse=True)
+          if not matches:
+              raise SystemExit('NO_SUCCESSFUL_PHASE225_RUN_FOR_EXACT_SHA')
+          print(matches[0]['databaseId'])
+          PY
+          )"
+          test -n "$RUN_ID"
+          ARTIFACT_NAME="phase225-production-build-evidence-${CANDIDATE_REF,,}"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" > reports/phase245/phase225_artifacts.json
+          export ARTIFACTS_PATH='reports/phase245/phase225_artifacts.json' ARTIFACT_NAME
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          payload = json.loads(Path(os.environ['ARTIFACTS_PATH']).read_text(encoding='utf-8'))
+          matches = [a for a in payload.get('artifacts', []) if a.get('name') == os.environ['ARTIFACT_NAME'] and not a.get('expired')]
+          if len(matches) != 1:
+              raise SystemExit(f"EXPECTED_ONE_PHASE225_ARTIFACT_GOT:{len(matches)}")
+          PY
+          echo "phase225_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+  provenance-acceptance:
+    name: provenance-acceptance
+    needs: locate-phase225-evidence
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 90
+    env:
+      ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: '1'
+      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+      PROVENANCE_SIGN_VERIFY_COMMAND: ${{ secrets.PROVENANCE_SIGN_VERIFY_COMMAND }}
+      CI: 'true'
+      CI_RUN_ID: ${{ github.run_id }}
+      CI_COMMIT_SHA: ${{ inputs.candidate_ref }}
+      PHASE225_RUN_ID: ${{ needs.locate-phase225-evidence.outputs.phase225_run_id }}
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.candidate_ref }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Setup pinned Python from runner tool cache
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Setup pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore exact-SHA Phase 225 build evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ${{ needs.locate-phase225-evidence.outputs.artifact_name }}
+          path: .
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.locate-phase225-evidence.outputs.phase225_run_id }}
+
+      - name: Enforce immutable candidate and provenance-only external secret scope
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_REF -notmatch '^[0-9a-fA-F]{40}$') { throw 'candidate_ref must be an exact 40-character commit SHA' }
+          python scripts/validate_acceptance_ref.py $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable candidate validation failed.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw "Checked out SHA mismatch: $head" }
+          python scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+          foreach ($name in @('ACCEPTANCE_CHALLENGE_VERIFY_COMMAND','PROVENANCE_SIGN_VERIFY_COMMAND')) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value)) { throw "Required Phase 245 acceptance input is missing: $name" }
+          }
+
+      - name: Verify transferred hosted provenance before use
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/verify_phase225_transfer.py --expected-sha $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Transferred Phase 225 evidence verification failed.' }
+          $transfer = Get-Content -LiteralPath 'reports/phase245/PHASE225_TRANSFER_VERIFICATION.json' -Raw | ConvertFrom-Json
+          if ($transfer.verified -ne $true) { throw 'Transferred Phase 225 evidence is not verified.' }
+          if ($transfer.expected_git_commit_sha -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw 'Phase 225 transfer is bound to a different SHA.' }
+          if ([string]::IsNullOrWhiteSpace([string]$transfer.acceptance_image_digest)) { throw 'Phase 225 transfer has no immutable image digest.' }
+          Copy-Item -LiteralPath 'reports/external_acceptance/provenance.json' -Destination 'reports/phase245/HOSTED_PROVENANCE.json' -Force
+          "ACCEPTANCE_CONTAINER_IMAGE=$($transfer.acceptance_image_digest)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Rebuild frontend artifact from the exact committed lock
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          npm --prefix frontend ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+          npm --prefix frontend run build
+          if ($LASTEXITCODE -ne 0) { throw 'frontend build failed.' }
+
+      - name: Pull and verify exact immutable acceptance image
+        shell: pwsh
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:ACCEPTANCE_CONTAINER_IMAGE)) { throw 'ACCEPTANCE_CONTAINER_IMAGE is missing.' }
+          $env:GHCR_TOKEN | docker login ghcr.io -u $env:GITHUB_ACTOR --password-stdin
+          if ($LASTEXITCODE -ne 0) { throw 'GHCR login failed.' }
+          docker pull $env:ACCEPTANCE_CONTAINER_IMAGE
+          if ($LASTEXITCODE -ne 0) { throw 'Exact immutable acceptance image pull failed.' }
+          $actual = (& docker image inspect --format '{{index .RepoDigests 0}}' $env:ACCEPTANCE_CONTAINER_IMAGE).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $env:ACCEPTANCE_CONTAINER_IMAGE) { throw "Acceptance image digest mismatch: $actual" }
+
+      - name: Prepare isolated provenance target identity
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $reports = Join-Path $PWD 'reports/external_acceptance'
+          New-Item -ItemType Directory -Force -Path $reports | Out-Null
+          $runtimeEnv = Join-Path $reports 'phase245_runtime.env'
+          Copy-Item -LiteralPath '.env.example' -Destination $runtimeEnv -Force
+          if (Test-Path -LiteralPath 'secrets') { throw 'Pre-existing secrets directory detected after clean checkout; refusing to reuse it for Phase 245.' }
+          python scripts/bootstrap_secrets.py
+          if ($LASTEXITCODE -ne 0) { throw 'Ephemeral acceptance secret bootstrap failed.' }
+
+          $shortSha = $env:CANDIDATE_REF.Substring(0, 12).ToLowerInvariant()
+          $projectName = "kripto_phase245_$shortSha"
+          $acceptanceEnvironmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:$projectName"
+          $env:COMPOSE_PROJECT_NAME = $projectName
+          $env:APP_ENV_FILE = 'reports/external_acceptance/phase245_runtime.env'
+          "COMPOSE_PROJECT_NAME=$projectName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "APP_ENV_FILE=reports/external_acceptance/phase245_runtime.env" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_ENVIRONMENT_ID=$acceptanceEnvironmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $composeConfig = & docker compose config 2>&1
+          if ($LASTEXITCODE -ne 0) { $composeConfig | Out-Host; throw 'docker compose config failed for isolated Phase 245 environment.' }
+          $composeConfigPath = Join-Path $reports 'phase245_compose_config.txt'
+          $composeConfig | Set-Content -LiteralPath $composeConfigPath -Encoding utf8
+          $topologyHash = (Get-FileHash -LiteralPath $composeConfigPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "ACCEPTANCE_TOPOLOGY_HASH=$topologyHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $identityDir = Join-Path $PWD 'reports/phase245'
+          New-Item -ItemType Directory -Force -Path $identityDir | Out-Null
+          $identity = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE245_PROVENANCE_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            phase225_run_id = [string]$env:PHASE225_RUN_ID
+            runner_name = $env:RUNNER_NAME
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            compose_project_name = $projectName
+            acceptance_environment_id = $acceptanceEnvironmentId
+            topology_hash = $topologyHash
+            acceptance_image_digest = $env:ACCEPTANCE_CONTAINER_IMAGE
+            truth_policy = 'This identity receipt binds the provenance/signature attempt to the exact candidate, transferred Phase 225 evidence, immutable container digest and actual Windows runner. PASS still requires a fresh trusted challenge and strict external signature verification.'
+          }
+          $identity | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $identityDir 'PROVENANCE_TARGET_IDENTITY.json') -Encoding utf8
+
+      - name: Generate fresh release-bound challenge
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/generate_acceptance_challenge.py
+          if ($LASTEXITCODE -ne 0) { throw 'Release challenge generation failed.' }
+
+      - name: Run fail-closed provenance and external signature acceptance profile
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external_acceptance_runner.py --profile provenance --confirm-real-target --timeout 1800
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 245 provenance/signature acceptance did not PASS.' }
+
+      - name: Capture Phase 245 result
+        if: always()
+        shell: pwsh
+        env:
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $outDir = Join-Path $PWD 'reports/phase245'
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $manifestPath = Join-Path $PWD 'reports/external_acceptance/manifest_provenance.json'
+          $transferPath = Join-Path $PWD 'reports/phase245/PHASE225_TRANSFER_VERIFICATION.json'
+          $passed = $false
+          $blocker = 'REQUIRED_MANIFEST_MISSING'
+          $provenanceGroup = 'NOT_EVALUATED'
+          $challengeVerified = $false
+          $challengeTrustVerified = $false
+          $transferVerified = $false
+
+          if (Test-Path -LiteralPath $transferPath -PathType Leaf) {
+            $transfer = Get-Content -LiteralPath $transferPath -Raw | ConvertFrom-Json
+            $transferVerified = ($transfer.verified -eq $true -and $transfer.expected_git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant())
+          }
+          if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            if ($null -ne $manifest.groups -and $null -ne $manifest.groups.provenance) { $provenanceGroup = [string]$manifest.groups.provenance }
+            $challengeVerified = ($manifest.challenge.verified -eq $true)
+            $challengeTrustVerified = ($manifest.challenge.trust_verified -eq $true)
+            if ($null -ne $manifest.PSObject.Properties['blocker']) { $blocker = [string]$manifest.blocker }
+            elseif ($manifest.selected_all_pass -eq $true) { $blocker = '' }
+            else { $blocker = 'PROVENANCE_PROFILE_NOT_ALL_PASS' }
+            $passed = (
+              $transferVerified -and
+              $manifest.classification -eq 'EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE' -and
+              $manifest.profile -eq 'provenance' -and
+              $manifest.environment.git_commit_sha -eq $env:CANDIDATE_REF.ToLowerInvariant() -and
+              $manifest.environment.topology_hash -eq ((Get-Content -LiteralPath 'reports/phase245/PROVENANCE_TARGET_IDENTITY.json' -Raw | ConvertFrom-Json).topology_hash) -and
+              $manifest.real_target_explicitly_confirmed -eq $true -and
+              $challengeVerified -and
+              $challengeTrustVerified -and
+              $manifest.selected_all_pass -eq $true -and
+              $provenanceGroup -eq 'PASS'
+            )
+          }
+
+          $result = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE245_PROVENANCE_ACCEPTANCE_WORKFLOW_RESULT'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            phase225_run_id = [string]$env:PHASE225_RUN_ID
+            runner_name = $env:RUNNER_NAME
+            passed = $passed
+            blocker = $blocker
+            phase225_transfer_verified = $transferVerified
+            challenge_verified = $challengeVerified
+            challenge_trust_verified = $challengeTrustVerified
+            provenance_group = $provenanceGroup
+            production_ready = $false
+            truth_policy = 'Phase 245 PASS closes only exact-SHA transferred hosted provenance plus strict external provenance/signature verification. It does not close ledger checkpoint, TESTNET/campaign gates or authorize LIVE trading.'
+          }
+          $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outDir 'PHASE245_PROVENANCE_RESULT.json') -Encoding utf8
+          $result | ConvertTo-Json -Depth 8 | Out-Host
+
+      - name: Erase ephemeral acceptance secrets
+        if: always()
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path -LiteralPath 'secrets') { Remove-Item -LiteralPath 'secrets' -Recurse -Force }
+
+      - name: Upload exact-SHA Phase 245 provenance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase245-provenance-acceptance-${{ inputs.candidate_ref }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            reports/external_acceptance/release_challenge.json
+            reports/external_acceptance/manifest_provenance.json
+            reports/external_acceptance/provenance.json
+            reports/external_acceptance/provenance_signature_verification.json
+            reports/external_acceptance/runs/**
+            reports/external_acceptance/phase245_compose_config.txt
+            reports/phase245/**
