@@ -82,7 +82,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          uv export --locked --no-dev --format requirements-txt --output-file reports/REQUIREMENTS_LOCKED.txt
+          uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/REQUIREMENTS_LOCKED.txt
           pip-audit -r reports/REQUIREMENTS_LOCKED.txt 2>&1 | tee reports/PIP_AUDIT.txt
       - name: Write backend gate summary
         if: always()
