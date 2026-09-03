@@ -60,6 +60,13 @@ def _atomic_replace_json(path: Path, payload: dict) -> None:
         raise
 
 
+def _wall_clock_epoch() -> float:
+    observed_epoch = time.time()
+    if not math.isfinite(observed_epoch):
+        raise RuntimeError("OPERATION_LOCK_CLOCK_INVALID")
+    return observed_epoch
+
+
 def _next_heartbeat_epoch(current: dict) -> float:
     try:
         created_epoch = float(current["created_epoch"])
@@ -72,10 +79,7 @@ def _next_heartbeat_epoch(current: dict) -> float:
         or previous_epoch < created_epoch
     ):
         raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID")
-    observed_epoch = time.time()
-    if not math.isfinite(observed_epoch):
-        raise RuntimeError("OPERATION_LOCK_CLOCK_INVALID")
-    next_epoch = max(observed_epoch, math.nextafter(previous_epoch, math.inf))
+    next_epoch = max(_wall_clock_epoch(), math.nextafter(previous_epoch, math.inf))
     if not math.isfinite(next_epoch):
         raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_EXHAUSTED")
     return next_epoch
@@ -212,9 +216,15 @@ def recover_stale_lock(lock_dir: Path, *, minimum_age_seconds: int = 30) -> dict
         lease_epoch = float(payload.get("heartbeat_epoch", created_epoch))
     except Exception as exc:
         raise RuntimeError("OPERATION_LOCK_CREATED_EPOCH_INVALID") from exc
-    if lease_epoch < created_epoch:
+    if (
+        not math.isfinite(created_epoch)
+        or not math.isfinite(lease_epoch)
+        or lease_epoch < created_epoch
+    ):
         raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID")
-    age = time.time() - lease_epoch
+    age = _wall_clock_epoch() - lease_epoch
+    if not math.isfinite(age):
+        raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID")
     if age < minimum_age_seconds:
         raise RuntimeError("OPERATION_LOCK_STALE_AGE_NOT_REACHED")
     # Re-read immediately before unlink to reduce TOCTOU risk and require token
@@ -254,7 +264,7 @@ def operation_lock(
     if recover_stale and (path.exists() or path.is_symlink()):
         recover_stale_lock(lock_dir, minimum_age_seconds=minimum_stale_age_seconds)
     token = uuid.uuid4().hex
-    now = time.time()
+    now = _wall_clock_epoch()
     payload = {
         "schema_version": SCHEMA_VERSION,
         "classification": "PLATFORM_OPERATION_LOCK",
