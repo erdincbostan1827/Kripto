@@ -29,7 +29,15 @@ def test_workflow_verifies_immutable_container_digest():
     text=(ROOT/'.github/workflows/production-acceptance.yml').read_text()
     assert 'container_digest: ${{ steps.image_digest.outputs.container_digest }}' in text
     assert 'EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}' in text
-    assert "test \"$ACTUAL\" = \"$EXPECTED_CONTAINER_DIGEST\"" in text
+
+    bash_digest_check = 'test "$ACTUAL" = "$EXPECTED_CONTAINER_DIGEST"'
+    powershell_digest_check = 'if ($actual -ne $env:EXPECTED_CONTAINER_DIGEST)'
+    assert bash_digest_check in text or powershell_digest_check in text
+
+    if 'Enforce Windows production acceptance runner' in text:
+        assert powershell_digest_check in text
+        assert "if ([string]::IsNullOrWhiteSpace($env:EXPECTED_CONTAINER_DIGEST))" in text
+        assert 'Immutable container digest mismatch:' in text
 
 def test_workflow_enforces_acceptance_ref():
     text=(ROOT/'.github/workflows/production-acceptance.yml').read_text()
