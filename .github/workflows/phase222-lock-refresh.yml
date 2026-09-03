@@ -6,7 +6,7 @@ on:
       - phase222-ci-stabilization
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate-lock-candidate:
@@ -30,6 +30,17 @@ jobs:
           p = Path('reports/uv.lock.generated')
           print('uv_lock_sha256=' + sha256(p.read_bytes()).hexdigest())
           PY
+      - name: Commit refreshed lock when changed
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo 'uv.lock already matches pyproject.toml'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add uv.lock
+          git commit -m 'phase222: lock AnyIO 4.13.0'
+          git push origin HEAD:phase222-ci-stabilization
       - name: Upload lock candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
