@@ -25,6 +25,31 @@ function Invoke-Gh {
     return @($output)
 }
 
+function Get-RunCreatedAt {
+    param([Parameter(Mandatory = $false)]$Run)
+
+    if ($null -eq $Run) {
+        return $null
+    }
+
+    $property = $Run.PSObject.Properties["createdAt"]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    $value = [string]$property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    try {
+        return [DateTimeOffset]$value
+    }
+    catch {
+        return $null
+    }
+}
+
 function Write-PhaseResult {
     param(
         [Parameter(Mandatory = $true)][bool]$Passed,
@@ -95,14 +120,31 @@ try {
             "--limit", "20",
             "--json", "databaseId,createdAt,status,conclusion"
         )) -join "`n"
-        $runs = @($json | ConvertFrom-Json)
+
+        $parsedRuns = $json | ConvertFrom-Json
+        $runs = @()
+        if ($null -ne $parsedRuns) {
+            if ($parsedRuns -is [System.Array]) {
+                $runs = @($parsedRuns | ForEach-Object { $_ })
+            }
+            else {
+                $runs = @($parsedRuns)
+            }
+        }
+
         $candidateRuns = @(
             $runs | Where-Object {
-                [DateTimeOffset]$_.createdAt -ge $dispatchStarted.AddSeconds(-10)
-            } | Sort-Object { [DateTimeOffset]$_.createdAt } -Descending
+                $createdAt = Get-RunCreatedAt -Run $_
+                ($null -ne $createdAt) -and ($createdAt -ge $dispatchStarted.AddSeconds(-10))
+            } | Sort-Object { Get-RunCreatedAt -Run $_ } -Descending
         )
+
         if ($candidateRuns.Count -gt 0) {
-            $runId = [string]$candidateRuns[0].databaseId
+            $databaseIdProperty = $candidateRuns[0].PSObject.Properties["databaseId"]
+            if ($null -eq $databaseIdProperty -or [string]::IsNullOrWhiteSpace([string]$databaseIdProperty.Value)) {
+                throw "Discovered readiness run does not expose databaseId."
+            }
+            $runId = [string]$databaseIdProperty.Value
             break
         }
         Start-Sleep -Seconds 2
