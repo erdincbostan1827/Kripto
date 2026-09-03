@@ -64,3 +64,22 @@ def test_readiness_workflow_captures_identity_with_windows_native_shell() -> Non
     assert "Checked-out candidate SHA mismatch" in identity_section
     assert "$env:GITHUB_OUTPUT" in identity_section
     assert "shell: bash" not in identity_section
+
+
+def test_readiness_workflow_prepares_compose_env_with_windows_native_shell() -> None:
+    text = _workflow_text()
+    prepare_section = text.split(
+        "- name: Prepare compose environment without production credentials", 1
+    )[1].split("- name: Secret-free production runner readiness", 1)[0]
+    assert "shell: powershell" in prepare_section
+    assert 'Test-Path -LiteralPath ".env.example" -PathType Leaf' in prepare_section
+    assert 'Copy-Item -LiteralPath ".env.example" -Destination ".env" -Force' in prepare_section
+    assert 'Test-Path -LiteralPath ".env" -PathType Leaf' in prepare_section
+    assert "shell: bash" not in prepare_section
+    assert "cp .env.example .env" not in prepare_section
+
+
+def test_readiness_workflow_has_no_bash_dependency_on_windows_runner() -> None:
+    text = _workflow_text()
+    assert "runs-on: [self-hosted, production-acceptance]" in text
+    assert "shell: bash" not in text
