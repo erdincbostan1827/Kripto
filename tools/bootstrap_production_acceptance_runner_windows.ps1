@@ -66,6 +66,17 @@ function Assert-Administrator {
     }
 }
 
+function Assert-Python312 {
+    $resolver = Join-Path $PSScriptRoot "resolve_python312_windows.ps1"
+    if (-not (Test-Path -LiteralPath $resolver -PathType Leaf)) {
+        throw "Python resolver is missing: $resolver"
+    }
+    & $resolver | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Windows Python 3.12 validation failed."
+    }
+}
+
 function Resolve-ExactCandidateSha {
     param([string]$RequestedRef)
     if ($RequestedRef) {
@@ -125,90 +136,125 @@ function Configure-ProtectedSecretsInteractive {
     }
 }
 
+function Get-ExistingRunnerListener {
+    $expectedListener = Join-Path $RunnerDirectory "bin\Runner.Listener.exe"
+    if (-not (Test-Path -LiteralPath $expectedListener -PathType Leaf)) {
+        return $null
+    }
+
+    $resolvedExpected = (Resolve-Path -LiteralPath $expectedListener).Path
+    foreach ($process in @(Get-Process -Name "Runner.Listener" -ErrorAction SilentlyContinue)) {
+        try {
+            if ($process.Path -and ((Resolve-Path -LiteralPath $process.Path).Path -eq $resolvedExpected)) {
+                return $process
+            }
+        } catch {
+            continue
+        }
+    }
+    return $null
+}
+
 function Install-Runner {
     param([string]$ExactSha)
     Write-Stage "Download and verify GitHub Actions Runner v$RunnerVersion"
 
-    if (Test-Path $RunnerDirectory) {
-        $existingConfig = Join-Path $RunnerDirectory ".runner"
-        if (Test-Path $existingConfig) {
-            throw "Runner directory is already configured: $RunnerDirectory. Remove the old runner registration first or choose a clean directory."
+    $existingConfig = Join-Path $RunnerDirectory ".runner"
+    $reuseExisting = Test-Path -LiteralPath $existingConfig -PathType Leaf
+
+    if ($reuseExisting) {
+        Write-Host "Existing runner configuration detected and will be reused: $RunnerDirectory"
+        if ($Mode -eq "Service" -and -not (Test-Path -LiteralPath (Join-Path $RunnerDirectory ".service") -PathType Leaf)) {
+            throw "Existing runner is not configured as a Windows service. Reconfigure it explicitly before using -Mode Service."
         }
     } else {
-        New-Item -ItemType Directory -Path $RunnerDirectory -Force | Out-Null
-    }
-
-    $tempArchive = Join-Path ([IO.Path]::GetTempPath()) "$([guid]::NewGuid().ToString('N'))-$RunnerArchive"
-    try {
-        Invoke-WebRequest -UseBasicParsing -Uri $RunnerUrl -OutFile $tempArchive
-        $actualHash = (Get-FileHash -Algorithm SHA256 -Path $tempArchive).Hash.ToLowerInvariant()
-        if ($actualHash -ne $RunnerSha256) {
-            throw "GitHub Actions Runner checksum mismatch. Expected $RunnerSha256 but got $actualHash."
+        if (-not (Test-Path -LiteralPath $RunnerDirectory -PathType Container)) {
+            New-Item -ItemType Directory -Path $RunnerDirectory -Force | Out-Null
         }
 
-        Expand-Archive -Path $tempArchive -DestinationPath $RunnerDirectory -Force
-    } finally {
-        Remove-Item -Force -ErrorAction SilentlyContinue $tempArchive
-    }
-
-    Write-Stage "Acquire short-lived runner registration token"
-    $registrationToken = (& gh api --method POST "repos/$Repository/actions/runners/registration-token" --jq '.token').Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($registrationToken)) {
-        throw "Could not obtain runner registration token. Repository admin permission is required."
-    }
-
-    try {
-        Push-Location $RunnerDirectory
+        $tempArchive = Join-Path ([IO.Path]::GetTempPath()) "$([guid]::NewGuid().ToString('N'))-$RunnerArchive"
         try {
-            $configArgs = @(
-                "--unattended",
-                "--replace",
-                "--url", "https://github.com/$Repository",
-                "--token", $registrationToken,
-                "--name", $RunnerName,
-                "--labels", "production-acceptance",
-                "--work", "_work"
-            )
-            if ($Mode -eq "Service") {
-                $configArgs += "--runasservice"
+            Invoke-WebRequest -UseBasicParsing -Uri $RunnerUrl -OutFile $tempArchive
+            $actualHash = (Get-FileHash -Algorithm SHA256 -Path $tempArchive).Hash.ToLowerInvariant()
+            if ($actualHash -ne $RunnerSha256) {
+                throw "GitHub Actions Runner checksum mismatch. Expected $RunnerSha256 but got $actualHash."
             }
 
-            & .\config.cmd @configArgs
-            if ($LASTEXITCODE -ne 0) {
-                throw "GitHub Actions Runner configuration failed with exit code $LASTEXITCODE."
+            Expand-Archive -Path $tempArchive -DestinationPath $RunnerDirectory -Force
+        } finally {
+            Remove-Item -Force -ErrorAction SilentlyContinue $tempArchive
+        }
+
+        Write-Stage "Acquire short-lived runner registration token"
+        $registrationToken = (& gh api --method POST "repos/$Repository/actions/runners/registration-token" --jq '.token').Trim()
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($registrationToken)) {
+            throw "Could not obtain runner registration token. Repository admin permission is required."
+        }
+
+        try {
+            Push-Location $RunnerDirectory
+            try {
+                $configArgs = @(
+                    "--unattended",
+                    "--replace",
+                    "--url", "https://github.com/$Repository",
+                    "--token", $registrationToken,
+                    "--name", $RunnerName,
+                    "--labels", "production-acceptance",
+                    "--work", "_work"
+                )
+                if ($Mode -eq "Service") {
+                    $configArgs += "--runasservice"
+                }
+
+                & .\config.cmd @configArgs
+                if ($LASTEXITCODE -ne 0) {
+                    throw "GitHub Actions Runner configuration failed with exit code $LASTEXITCODE."
+                }
+            } finally {
+                Pop-Location
             }
         } finally {
-            Pop-Location
+            $registrationToken = $null
+            [GC]::Collect()
         }
-    } finally {
-        $registrationToken = $null
-        [GC]::Collect()
     }
 
-    Write-Stage "Start runner"
+    Write-Stage "Start or verify runner"
     if ($Mode -eq "Service") {
         $serviceFile = Join-Path $RunnerDirectory ".service"
-        if (-not (Test-Path $serviceFile)) {
+        if (-not (Test-Path -LiteralPath $serviceFile -PathType Leaf)) {
             throw "Runner requested Service mode but .service was not created."
         }
         $serviceName = (Get-Content $serviceFile -Raw).Trim()
         if ([string]::IsNullOrWhiteSpace($serviceName)) {
             throw "Runner service name is empty."
         }
-        Start-Service -Name $serviceName
         $service = Get-Service -Name $serviceName
+        if ($service.Status -ne "Running") {
+            Start-Service -Name $serviceName
+            $service = Get-Service -Name $serviceName
+        }
         if ($service.Status -ne "Running") {
             throw "Runner service did not enter Running state: $serviceName"
         }
         Write-Host "Runner service is Running: $serviceName"
     } else {
-        $runCmd = Join-Path $RunnerDirectory "run.cmd"
-        $process = Start-Process -FilePath $runCmd -WorkingDirectory $RunnerDirectory -PassThru
-        Start-Sleep -Seconds 3
-        if ($process.HasExited) {
-            throw "Foreground runner exited immediately. Inspect $RunnerDirectory\_diag."
+        $existingListener = Get-ExistingRunnerListener
+        if ($existingListener) {
+            Write-Host "Foreground runner is already running. PID=$($existingListener.Id)"
+        } else {
+            $runCmd = Join-Path $RunnerDirectory "run.cmd"
+            if (-not (Test-Path -LiteralPath $runCmd -PathType Leaf)) {
+                throw "Runner executable is missing: $runCmd"
+            }
+            $process = Start-Process -FilePath $runCmd -WorkingDirectory $RunnerDirectory -PassThru
+            Start-Sleep -Seconds 3
+            if ($process.HasExited) {
+                throw "Foreground runner exited immediately. Inspect $RunnerDirectory\_diag."
+            }
+            Write-Host "Foreground runner process started. PID=$($process.Id). Keep the Windows session available until acceptance is complete."
         }
-        Write-Host "Foreground runner process started. PID=$($process.Id). Keep the Windows session available until acceptance is complete."
     }
 
     Write-Host "Runner labels expected by GitHub workflow: self-hosted, production-acceptance"
@@ -228,6 +274,7 @@ Invoke-Checked bash --version
 Invoke-Checked docker --version
 Invoke-Checked docker info
 Invoke-Checked docker compose version
+Assert-Python312
 
 $exactSha = Resolve-ExactCandidateSha -RequestedRef $CandidateRef
 Ensure-GitHubEnvironment -ExactSha $exactSha
