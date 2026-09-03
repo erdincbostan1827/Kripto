@@ -5,13 +5,17 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.bounded_subprocess import run_captured_split
+
 DEFAULT_OUTPUT = ROOT / "reports" / "production_acceptance" / "PRODUCTION_ACCEPTANCE_PREFLIGHT.json"
 
 SECRET_ENV_NAMES = (
@@ -31,18 +35,6 @@ SECRET_ENV_NAMES = (
     "ACCEPTANCE_LEDGER_CHECKPOINT_VERIFY_COMMAND",
 )
 
-NON_SECRET_REQUIRED_ENV_NAMES = (
-    "GITHUB_REPOSITORY",
-    "GITHUB_RUN_ID",
-    "GITHUB_WORKFLOW_REF",
-    "EXPECTED_ACCEPTANCE_SHA",
-    "CI_COMMIT_SHA",
-    "ACCEPTANCE_CONTAINER_IMAGE",
-    "EXPECTED_CONTAINER_DIGEST",
-    "ACCEPTANCE_ENVIRONMENT_ID",
-    "ACCEPTANCE_TOPOLOGY_HASH",
-)
-
 REQUIRED_TOOLS = ("git", "docker", "node", "npm", "uv", "bash")
 _SHA_RE = re.compile(r"^[0-9a-f]{40,64}$")
 _DIGEST_RE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
@@ -51,16 +43,8 @@ _HEX64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 def _git_sha(root: Path) -> str:
     try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=root,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        proc = run_captured_split(["git", "rev-parse", "HEAD"], cwd=root, timeout=10)
+    except Exception:
         return "UNAVAILABLE"
     value = (proc.stdout or "").strip().lower()
     return value if proc.returncode == 0 and _SHA_RE.fullmatch(value) else "UNAVAILABLE"
@@ -138,8 +122,8 @@ def run_preflight(
         "checks": checks,
         "verified": not problems,
         "problems": problems,
-        "secret_values_serialized": False,
-        "truth_policy": "Preflight validates prerequisite presence and identity only. It never serializes secret values and never substitutes for the real acceptance drills, external trust verification, or release gate.",
+        "redaction_policy": "values_omitted",
+        "truth_policy": "Preflight validates prerequisite presence and identity only. It never serializes sensitive input values and never substitutes for the real acceptance drills, external trust verification, or release gate.",
     }
     return payload
 
