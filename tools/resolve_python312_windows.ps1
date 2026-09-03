@@ -52,6 +52,8 @@ function Get-CandidatePythonExecutables {
 }
 
 $selected = $null
+$selectedPipOutput = $null
+$matchingRuntimeWithoutPip = $false
 foreach ($candidate in Get-CandidatePythonExecutables) {
     if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
         continue
@@ -70,29 +72,40 @@ foreach ($candidate in Get-CandidatePythonExecutables) {
         if (-not [int]::TryParse($parts[1], [ref]$pointerBits)) {
             continue
         }
-        if ($version -eq $RequiredPythonVersion -and $pointerBits -eq $RequiredPointerBits) {
-            $selected = (Resolve-Path -LiteralPath $candidate).Path
-            break
+        if ($version -ne $RequiredPythonVersion -or $pointerBits -ne $RequiredPointerBits) {
+            continue
         }
+
+        $pipOutput = & $candidate -m pip --version 2>&1
+        if ($LASTEXITCODE -ne 0 -or -not $pipOutput) {
+            $matchingRuntimeWithoutPip = $true
+            Write-Verbose "CPython $RequiredPythonVersion x64 candidate '$candidate' was skipped because pip is unavailable."
+            continue
+        }
+
+        $selected = (Resolve-Path -LiteralPath $candidate).Path
+        $selectedPipOutput = ([string]$pipOutput).Trim()
+        break
     } catch {
         Write-Verbose "Python candidate failed: $candidate :: $($_.Exception.Message)"
     }
 }
 
 if (-not $selected) {
+    $pipDetail = if ($matchingRuntimeWithoutPip) {
+        "At least one exact CPython $RequiredPythonVersion x64 runtime was found, but pip is unavailable on every matching candidate."
+    } else {
+        "No exact CPython $RequiredPythonVersion x64 runtime was found."
+    }
     throw @"
-CPython $RequiredPythonVersion x64 was not found on this Windows production-acceptance runner.
+$pipDetail
 Install the exact PSF WinGet package from an elevated PowerShell window, then rerun the bootstrap:
   winget install --id Python.Python.3.12 --exact --version $RequiredPythonVersion --scope machine --accept-source-agreements --accept-package-agreements
-No production acceptance can proceed without the pinned Windows Python runtime.
+No production acceptance can proceed without a healthy pinned Windows Python runtime with pip.
 "@
 }
 
-$pipOutput = & $selected -m pip --version
-if ($LASTEXITCODE -ne 0 -or -not $pipOutput) {
-    throw "CPython $RequiredPythonVersion x64 was found at '$selected' but pip is unavailable."
-}
-Write-Host ([string]$pipOutput).Trim()
+Write-Host $selectedPipOutput
 
 if ($AddToGitHubPath) {
     if ([string]::IsNullOrWhiteSpace($env:GITHUB_PATH)) {
