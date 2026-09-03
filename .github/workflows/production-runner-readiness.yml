@@ -28,13 +28,13 @@ jobs:
           ref: ${{ github.event.inputs.candidate_ref }}
           fetch-depth: 0
 
-      - name: Enforce immutable candidate ref
-        run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"
-
       - name: Setup Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Enforce immutable candidate ref
+        run: python scripts/validate_acceptance_ref.py "${{ github.event.inputs.candidate_ref }}"
 
       - name: Capture exact candidate identity
         id: identity
@@ -44,6 +44,13 @@ jobs:
           SHA="$(git rev-parse HEAD)"
           test -n "$SHA"
           echo "source_sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare compose environment without production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .env.example
+          cp .env.example .env
 
       - name: Secret-free production runner readiness
         run: >-
