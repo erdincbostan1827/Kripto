@@ -48,6 +48,14 @@ def test_operation_lock_manual_heartbeat_advances_with_constant_wall_clock(tmp_p
     assert not (tmp_path/oplock.LOCK_NAME).exists()
 
 
+def test_operation_lock_rejects_nonfinite_wall_clock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(oplock.time,'time',lambda:float('nan'))
+    with pytest.raises(RuntimeError,match='OPERATION_LOCK_CLOCK_INVALID'):
+        with oplock.operation_lock(tmp_path,operation='invalid-clock'):
+            pass
+    assert not (tmp_path/oplock.LOCK_NAME).exists()
+
+
 def test_stale_recovery_uses_heartbeat_not_only_created_epoch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(oplock,'_boot_identity',lambda:'boot')
     monkeypatch.setattr(oplock,'_process_start_identity',lambda pid:'new')
@@ -58,6 +66,18 @@ def test_stale_recovery_uses_heartbeat_not_only_created_epoch(tmp_path: Path, mo
     with pytest.raises(RuntimeError,match='STALE_AGE_NOT_REACHED'):
         oplock.recover_stale_lock(tmp_path,minimum_age_seconds=30)
     assert (tmp_path/oplock.LOCK_NAME).exists()
+
+
+def test_stale_recovery_rejects_nonfinite_heartbeat_epoch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(oplock,'_boot_identity',lambda:'boot')
+    monkeypatch.setattr(oplock,'_process_start_identity',lambda pid:'new')
+    monkeypatch.setattr(oplock,'_pid_alive',lambda pid:True)
+    payload={'schema_version':'1.1','classification':'PLATFORM_OPERATION_LOCK','token':'t','operation':'x','pid':123,'hostname':__import__('socket').gethostname(),'boot_identity':'boot','process_start_identity':'old','created_at':'x','created_epoch':1.0,'heartbeat_epoch':float('nan'),'heartbeat_at':'x','policy':'x'}
+    path=tmp_path/oplock.LOCK_NAME
+    path.write_text(json.dumps(payload))
+    with pytest.raises(RuntimeError,match='OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID'):
+        oplock.recover_stale_lock(tmp_path,minimum_age_seconds=30)
+    assert path.exists()
 
 
 def test_failed_post_rollback_runtime_acceptance_restores_new_release_and_preserves_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
