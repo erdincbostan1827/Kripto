@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import socket
 import time
@@ -36,7 +37,6 @@ def _atomic_create_json(path: Path, payload: dict) -> None:
         raise
 
 
-
 def _atomic_replace_json(path: Path, payload: dict) -> None:
     if path.is_symlink() or not path.is_file():
         raise RuntimeError("OPERATION_LOCK_UNSAFE")
@@ -60,18 +60,40 @@ def _atomic_replace_json(path: Path, payload: dict) -> None:
         raise
 
 
+def _next_heartbeat_epoch(current: dict) -> float:
+    try:
+        created_epoch = float(current["created_epoch"])
+        previous_epoch = float(current.get("heartbeat_epoch", created_epoch))
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID") from exc
+    if (
+        not math.isfinite(created_epoch)
+        or not math.isfinite(previous_epoch)
+        or previous_epoch < created_epoch
+    ):
+        raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_INVALID")
+    observed_epoch = time.time()
+    if not math.isfinite(observed_epoch):
+        raise RuntimeError("OPERATION_LOCK_CLOCK_INVALID")
+    next_epoch = max(observed_epoch, math.nextafter(previous_epoch, math.inf))
+    if not math.isfinite(next_epoch):
+        raise RuntimeError("OPERATION_LOCK_HEARTBEAT_EPOCH_EXHAUSTED")
+    return next_epoch
+
+
 def _refresh_heartbeat(path: Path, *, token: str, boot_identity: str, process_start_identity: str) -> float:
     current = _read_lock(path)
     if current.get("token") != token:
         raise RuntimeError("OPERATION_LOCK_OWNERSHIP_LOST")
     if current.get("boot_identity") != boot_identity or current.get("process_start_identity") != process_start_identity:
         raise RuntimeError("OPERATION_LOCK_OWNER_IDENTITY_CHANGED")
-    now = time.time()
+    now = _next_heartbeat_epoch(current)
     updated = dict(current)
     updated["heartbeat_epoch"] = now
     updated["heartbeat_at"] = datetime.now(timezone.utc).isoformat()
     _atomic_replace_json(path, updated)
     return now
+
 
 def _boot_identity() -> str | None:
     """Return a boot-stable local identity without inventing one when unavailable."""
@@ -256,11 +278,21 @@ def operation_lock(
 
     stop = threading.Event()
     heartbeat_errors: list[BaseException] = []
+    heartbeat_refresh_lock = threading.Lock()
+
+    def _refresh_owned_heartbeat() -> float:
+        with heartbeat_refresh_lock:
+            return _refresh_heartbeat(
+                path,
+                token=token,
+                boot_identity=boot_identity,
+                process_start_identity=process_start_identity,
+            )
 
     def _heartbeat_worker() -> None:
         while not stop.wait(heartbeat_interval_seconds):
             try:
-                _refresh_heartbeat(path, token=token, boot_identity=boot_identity, process_start_identity=process_start_identity)
+                _refresh_owned_heartbeat()
             except BaseException as exc:
                 heartbeat_errors.append(exc)
                 stop.set()
@@ -269,6 +301,7 @@ def operation_lock(
     thread = threading.Thread(target=_heartbeat_worker, name=f"platform-lock-heartbeat-{operation}", daemon=True)
     thread.start()
     body_error: BaseException | None = None
+
     def _assert_healthy() -> None:
         if heartbeat_errors:
             exc = heartbeat_errors[0]
@@ -284,7 +317,7 @@ def operation_lock(
             "token": token, "path": str(path), "operation": operation,
             "boot_identity": boot_identity, "process_start_identity": process_start_identity,
             "heartbeat_interval_seconds": heartbeat_interval_seconds,
-            "heartbeat": lambda: _refresh_heartbeat(path, token=token, boot_identity=boot_identity, process_start_identity=process_start_identity),
+            "heartbeat": _refresh_owned_heartbeat,
             "assert_healthy": _assert_healthy,
         }
     except BaseException as exc:
