@@ -34,6 +34,7 @@ def test_phase241_workflow_is_exact_sha_runtime_plus_restart_and_fail_closed() -
     assert "manifest_runtime.json" in text
     assert "manifest_restart-drills.json" in text
     assert "restart_drills" in text
+    assert "RESTART_TARGET_IDENTITY.json" in text
     assert "phase241-restart-acceptance-${{ inputs.candidate_ref }}" in text
     assert "production_ready = $false" in text
     assert "It does not authorize LIVE trading" in text
@@ -80,6 +81,8 @@ def test_phase241_workflow_is_windows_native_and_isolated() -> None:
     assert "$env:APP_ENV_FILE = 'reports/external_acceptance/phase241_runtime.env'" in text
     assert "ACCEPTANCE_ENVIRONMENT_ID" in text
     assert "ACCEPTANCE_TOPOLOGY_HASH" in text
+    assert "runner_os = $env:RUNNER_OS" in text
+    assert "topology_hash = $topologyHash" in text
     assert "docker compose down -v --remove-orphans" in text
     assert "Remove-Item -LiteralPath 'secrets' -Recurse -Force" in text
 
@@ -96,12 +99,17 @@ def test_phase241_orchestrator_correlates_exact_run_and_verifies_both_manifests(
     assert '& gh run watch $runId --repo $Repository --exit-status' in text
     assert '$artifactName = "phase241-restart-acceptance-$CandidateRef"' in text
     assert '"PHASE241_RESTART_RESULT.json"' in text
+    assert '"RESTART_TARGET_IDENTITY.json"' in text
     assert '"manifest_runtime.json"' in text
     assert '"manifest_restart-drills.json"' in text
+    assert '$identity.classification -ne "PHASE241_RESTART_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE"' in text
+    assert '$identity.candidate_sha -ne $CandidateRef' in text
+    assert '$identity.runner_os -ne "Windows"' in text
+    assert '$manifest.environment.git_commit_sha -ne $CandidateRef' in text
+    assert '$manifest.environment.topology_hash -ne $identity.topology_hash' in text
     assert '$runtime.profile -ne "runtime"' in text
     assert '$restart.profile -ne "restart-drills"' in text
-    assert '$runtime.environment.git_commit_sha -ne $CandidateRef' in text
-    assert '$manifest.environment.git_commit_sha -ne $CandidateRef' in text
+    assert '$workflowResult.candidate_sha -ne $CandidateRef' in text
     assert '$runtime.challenge.verified -eq $true' in text
     assert '$restart.challenge.verified -eq $true' in text
     assert '$runtime.challenge.trust_verified -eq $true' in text
