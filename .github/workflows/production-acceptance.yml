@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "$ACCEPTANCE_CONTAINER_IMAGE" .
+          docker build --file backend/Dockerfile --target runtime -t "$ACCEPTANCE_CONTAINER_IMAGE" .
           docker push "$ACCEPTANCE_CONTAINER_IMAGE"
           docker pull "$ACCEPTANCE_CONTAINER_IMAGE"
 
@@ -178,7 +178,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p reports/external_acceptance
-          uv export --locked --no-dev --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
+          uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file reports/external_acceptance/requirements.locked.txt
           pip-audit -r reports/external_acceptance/requirements.locked.txt
           bandit -q -r backend scripts
           semgrep --config auto --error backend scripts
