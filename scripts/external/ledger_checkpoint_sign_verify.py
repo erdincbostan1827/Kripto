@@ -18,8 +18,8 @@ def main() -> int:
     try:
         signing_command = _required_env("LEDGER_CHECKPOINT_SIGN_COMMAND")
         # Explicit platform shell argv is selected by the already-hardened
-        # approved-command launcher. shell=True is never used, and the command
-        # value is registered as a redaction secret before output is emitted.
+        # approved-command launcher; subprocess shell mode is never enabled.
+        # The command value is registered as a redaction secret before output.
         argv = _shell_argv(signing_command)
         rc = _run_redacted(argv, secret_command=signing_command)
         if rc != 0:
