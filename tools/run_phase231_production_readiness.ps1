@@ -50,6 +50,25 @@ function Get-RunCreatedAt {
     }
 }
 
+function Get-RunDisplayTitle {
+    param([Parameter(Mandatory = $false)]$Run)
+
+    if ($null -eq $Run) {
+        return $null
+    }
+
+    $property = $Run.PSObject.Properties["displayTitle"]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    $value = [string]$property.Value
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+    return $value
+}
+
 function Write-PhaseResult {
     param(
         [Parameter(Mandatory = $true)][bool]$Passed,
@@ -92,6 +111,7 @@ try {
         throw "CandidateRef must resolve to an exact 40-character commit SHA. Got: '$CandidateRef'"
     }
     $CandidateRef = $CandidateRef.ToLowerInvariant()
+    $expectedRunTitle = "Production Runner Readiness $CandidateRef"
 
     $resolverPath = Join-Path $PSScriptRoot "resolve_python312_windows.ps1"
     if (-not (Test-Path -LiteralPath $resolverPath -PathType Leaf)) {
@@ -118,7 +138,7 @@ try {
             "--workflow", "Production Runner Readiness",
             "--event", "workflow_dispatch",
             "--limit", "20",
-            "--json", "databaseId,createdAt,status,conclusion"
+            "--json", "databaseId,createdAt,status,conclusion,displayTitle"
         )) -join "`n"
 
         $parsedRuns = $json | ConvertFrom-Json
@@ -135,7 +155,10 @@ try {
         $candidateRuns = @(
             $runs | Where-Object {
                 $createdAt = Get-RunCreatedAt -Run $_
-                ($null -ne $createdAt) -and ($createdAt -ge $dispatchStarted.AddSeconds(-10))
+                $displayTitle = Get-RunDisplayTitle -Run $_
+                ($null -ne $createdAt) -and
+                    ($createdAt -ge $dispatchStarted.AddSeconds(-10)) -and
+                    ($displayTitle -eq $expectedRunTitle)
             } | Sort-Object { Get-RunCreatedAt -Run $_ } -Descending
         )
 
@@ -151,7 +174,7 @@ try {
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
     if ([string]::IsNullOrWhiteSpace($runId)) {
-        throw "Could not discover the dispatched Production Runner Readiness run."
+        throw "Could not discover the dispatched Production Runner Readiness run for exact candidate '$CandidateRef'."
     }
 
     & gh run watch $runId --repo $Repository --exit-status

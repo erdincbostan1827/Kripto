@@ -54,6 +54,21 @@ def test_phase231_orchestrator_handles_windows_powershell_json_arrays_safely() -
     assert "[DateTimeOffset]$_.createdAt" not in text
 
 
+def test_phase231_orchestrator_correlates_exact_candidate_run_title() -> None:
+    text = _text()
+    assert '$expectedRunTitle = "Production Runner Readiness $CandidateRef"' in text
+    assert '"databaseId,createdAt,status,conclusion,displayTitle"' in text
+    assert '$Run.PSObject.Properties["displayTitle"]' in text
+    assert "$displayTitle = Get-RunDisplayTitle -Run $_" in text
+    assert "$displayTitle -eq $expectedRunTitle" in text
+    assert "for exact candidate '$CandidateRef'" in text
+
+
+def test_readiness_workflow_run_name_is_exact_candidate_bound() -> None:
+    text = _workflow_text()
+    assert "run-name: Production Runner Readiness ${{ inputs.candidate_ref }}" in text
+
+
 def test_readiness_workflow_captures_identity_with_windows_native_shell() -> None:
     text = _workflow_text()
     identity_section = text.split("- name: Capture exact candidate identity", 1)[1].split(
