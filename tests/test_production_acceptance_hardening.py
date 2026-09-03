@@ -7,6 +7,8 @@ from scripts.verify_production_acceptance_hardening import (
     EXPECTED_RUNTIME_BUILD,
     EXPECTED_SCANNERS,
     EXPECTED_UV,
+    ORCHESTRATOR_COMMAND,
+    PREFLIGHT_COMMAND,
     verify_evidence_trigger_text,
     verify_text,
 )
@@ -26,7 +28,12 @@ def _valid_workflow_text() -> str:
             'runs-on: [self-hosted, production-acceptance]',
             'environment: production-acceptance',
             'ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"',
-            'python scripts/production_acceptance_orchestrator.py --confirm-real-target',
+            'EXPECTED_ACCEPTANCE_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}',
+            'EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}',
+            PREFLIGHT_COMMAND,
+            'reports/production_acceptance/PRODUCTION_ACCEPTANCE_PREFLIGHT.json',
+            'reports/production_acceptance/**',
+            ORCHESTRATOR_COMMAND,
             'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093',
         ]
     )
@@ -85,6 +92,16 @@ def test_real_target_trust_boundary_cannot_be_removed() -> None:
     text = _valid_workflow_text().replace('ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"', '')
     problems = verify_text(text)
     assert 'MISSING_REQUIRED_INVARIANT:ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"' in problems
+
+
+def test_real_target_preflight_cannot_be_removed_or_bypassed() -> None:
+    text = _valid_workflow_text().replace(PREFLIGHT_COMMAND, '')
+    problems = verify_text(text)
+    assert f'MISSING_REQUIRED_INVARIANT:{PREFLIGHT_COMMAND}' in problems
+
+    text = _valid_workflow_text().replace(PREFLIGHT_COMMAND, f'{PREFLIGHT_COMMAND}\ncontinue-on-error: true')
+    problems = verify_text(text)
+    assert 'REAL_TARGET_PREFLIGHT_CONTINUE_ON_ERROR_FORBIDDEN' in problems
 
 
 def test_evidence_workflow_covers_all_scanned_source_changes() -> None:
