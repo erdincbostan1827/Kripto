@@ -25,6 +25,8 @@ EXPECTED_BANDIT_VERIFY = (
     'python scripts/external/verify_bandit_baseline.py '
     'reports/external_acceptance/bandit-report.json'
 )
+PREFLIGHT_COMMAND = 'python scripts/production_acceptance_preflight.py'
+ORCHESTRATOR_COMMAND = 'python scripts/production_acceptance_orchestrator.py --confirm-real-target'
 REQUIRED_SNIPPETS = (
     'REPOSITORY_LC="${GITHUB_REPOSITORY,,}"',
     'IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"',
@@ -35,7 +37,12 @@ REQUIRED_SNIPPETS = (
     'runs-on: [self-hosted, production-acceptance]',
     'environment: production-acceptance',
     'ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"',
-    'python scripts/production_acceptance_orchestrator.py --confirm-real-target',
+    PREFLIGHT_COMMAND,
+    'reports/production_acceptance/PRODUCTION_ACCEPTANCE_PREFLIGHT.json',
+    'reports/production_acceptance/**',
+    'EXPECTED_ACCEPTANCE_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}',
+    'EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}',
+    ORCHESTRATOR_COMMAND,
     'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093',
 )
 EVIDENCE_TRIGGER_SNIPPETS = (
@@ -64,6 +71,13 @@ def verify_text(text: str) -> list[str]:
     for snippet in FORBIDDEN_SNIPPETS:
         if snippet in text:
             problems.append(f'FORBIDDEN_REGRESSION:{snippet}')
+    if PREFLIGHT_COMMAND in text and ORCHESTRATOR_COMMAND in text:
+        preflight_index = text.index(PREFLIGHT_COMMAND)
+        orchestrator_index = text.index(ORCHESTRATOR_COMMAND)
+        if preflight_index >= orchestrator_index:
+            problems.append('REAL_TARGET_PREFLIGHT_NOT_BEFORE_ORCHESTRATOR')
+        elif 'continue-on-error' in text[preflight_index:orchestrator_index]:
+            problems.append('REAL_TARGET_PREFLIGHT_CONTINUE_ON_ERROR_FORBIDDEN')
     return problems
 
 
@@ -90,6 +104,7 @@ def main() -> int:
     print('runtime_image_build=backend/Dockerfile:runtime')
     print('ghcr_identity=lowercase_repository+exact_git_sha')
     print('evidence_trigger_coverage=backend+scripts+config+tests:on-push+pull-request')
+    print('real_target_preflight=required+fail-closed+redacted-evidence')
     print('real_target_boundary=self-hosted+production-acceptance+challenge-trust')
     return 0
 
