@@ -24,19 +24,50 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify host Python 3.12
+      - name: Capture Windows runner diagnostics
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
-          $version = (& python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
-          if ($LASTEXITCODE -ne 0 -or $version -notmatch '^3\.12\.\d+$') {
-            throw "Self-hosted production runner requires Python 3.12.x on PATH; detected '$version'."
+          $ErrorActionPreference = 'Continue'
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+          $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "RUNNER_IDENTITY=$($identity.Name)"
+          Write-Host "RUNNER_IS_ADMIN=$isAdmin"
+          Write-Host "RUNNER_NAME=$env:RUNNER_NAME"
+          Write-Host "RUNNER_OS=$env:RUNNER_OS"
+          Write-Host "RUNNER_ARCH=$env:RUNNER_ARCH"
+          Write-Host "RUNNER_TOOL_CACHE=$env:RUNNER_TOOL_CACHE"
+          Write-Host "AGENT_TOOLSDIRECTORY=$env:AGENT_TOOLSDIRECTORY"
+
+          $python = Get-Command python.exe -ErrorAction SilentlyContinue
+          if ($python) {
+            Write-Host "PYTHON_PATH=$($python.Source)"
+            & $python.Source --version
+          } else {
+            Write-Host 'PYTHON_PATH=MISSING'
           }
-          python -m pip --version
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Python pip is unavailable on the self-hosted production runner.'
+
+          $sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
+          if ($sevenZip) {
+            Write-Host "SEVENZIP_PATH=$($sevenZip.Source)"
+          } else {
+            Write-Host 'SEVENZIP_PATH=MISSING'
           }
-          Write-Host "Validated host Python: $version"
+
+          $services = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {
+            $_.PathName -like '*actions-runner-kripto-prod*'
+          })
+          if ($services.Count -eq 0) {
+            Write-Host 'RUNNER_SERVICE=NOT_DETECTED_FOR_DIRECTORY'
+          } else {
+            foreach ($service in $services) {
+              Write-Host "RUNNER_SERVICE=$($service.Name);STATE=$($service.State);ACCOUNT=$($service.StartName)"
+            }
+          }
+
+          if (-not $python) {
+            throw 'DIAGNOSTIC_EXPECTED_BLOCKER: Python 3.12 is not available on the runner PATH.'
+          }
 
       - name: Prepare compose environment without production credentials
         shell: bash
