@@ -1,0 +1,64 @@
+name: Phase 229 Windows Bootstrap Syntax
+
+on:
+  pull_request:
+    paths:
+      - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
+      - 'tests/test_windows_production_runner_bootstrap_contract.py'
+      - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/bootstrap_production_acceptance_runner_windows.ps1'
+      - 'tests/test_windows_production_runner_bootstrap_contract.py'
+      - '.github/workflows/phase229-windows-bootstrap-syntax.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  powershell-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Parse bootstrap with Windows PowerShell
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'tools/bootstrap_production_acceptance_runner_windows.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $path,
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "PowerShell parser found $($errors.Count) syntax error(s)."
+          }
+          Write-Host 'PowerShell syntax: PASS'
+
+      - name: Verify fail-closed bootstrap contract
+        shell: powershell
+        run: |
+          $text = Get-Content 'tools/bootstrap_production_acceptance_runner_windows.ps1' -Raw
+          $required = @(
+            '$RunnerVersion = "2.337.0"',
+            '$RunnerSha256 = "1150692afa94e71f872017e254ea55b6eece1eece3fe7e3a6d4c93d0a1b85cfc"',
+            'actions/runners/registration-token',
+            'production-acceptance',
+            'Get-FileHash -Algorithm SHA256',
+            'No production-ready/LIVE claim is made by this bootstrap.'
+          )
+          foreach ($needle in $required) {
+            if (-not $text.Contains($needle)) {
+              throw "Missing required bootstrap contract: $needle"
+            }
+          }
+          if ($text.Contains('gh secret set $name --env $EnvironmentName --repo $Repository --body')) {
+            throw 'Protected secret values must not be passed through --body by the bootstrap.'
+          }
+          Write-Host 'Fail-closed bootstrap contract: PASS'
