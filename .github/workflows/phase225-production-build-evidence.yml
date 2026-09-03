@@ -15,7 +15,7 @@ on:
       - 'tests/test_production_acceptance_hardening.py'
       - 'uv.lock'
       - 'pyproject.toml'
-      - 'Dockerfile'
+      - 'backend/Dockerfile'
   pull_request:
     paths:
       - '.github/workflows/production-acceptance.yml'
@@ -27,7 +27,7 @@ on:
       - 'tests/test_production_acceptance_hardening.py'
       - 'uv.lock'
       - 'pyproject.toml'
-      - 'Dockerfile'
+      - 'backend/Dockerfile'
 
 permissions:
   contents: read
@@ -74,6 +74,7 @@ jobs:
             'cyclonedx-bom==7.3.1' \
             'pip-licenses==5.5.5'
           uv lock --locked
+          mkdir -p reports
           python -m pip freeze | sort > reports/PHASE225_SCANNER_VERSIONS.txt
 
       - name: Build and push exact lowercase acceptance image
@@ -86,7 +87,7 @@ jobs:
           IMAGE="ghcr.io/${REPOSITORY_LC}/acceptance:${SHA}"
           test "$IMAGE" = "${IMAGE,,}"
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "$IMAGE" .
+          docker build --file backend/Dockerfile --target runtime -t "$IMAGE" .
           docker push "$IMAGE"
           docker pull "$IMAGE"
           DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")"
