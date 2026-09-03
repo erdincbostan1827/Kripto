@@ -1,4 +1,5 @@
 name: Production Acceptance
+run-name: Production Acceptance ${{ inputs.acceptance_ref }}
 
 on:
   workflow_dispatch:
@@ -263,6 +264,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Enforce Windows production acceptance runner
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -ne 'Windows') {
+            throw "Production acceptance runner must be Windows; observed RUNNER_OS=$env:RUNNER_OS"
+          }
+
       - name: Restore CI build evidence for the exact candidate
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -279,38 +289,55 @@ jobs:
           --expected-workflow-ref "${{ github.workflow_ref }}"
 
       - name: Provision exact acceptance Python CLI toolchain from CI receipt
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          python scripts/ci_toolchain_receipt.py pip-specs > /tmp/ci-toolchain-requirements.txt
-          python -m pip install --disable-pip-version-check -r /tmp/ci-toolchain-requirements.txt
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $requirements = Join-Path $env:RUNNER_TEMP 'ci-toolchain-requirements.txt'
+          $specs = & python scripts/ci_toolchain_receipt.py pip-specs
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve exact CI toolchain specs.' }
+          $specs | Set-Content -LiteralPath $requirements -Encoding utf8
+          python -m pip install --disable-pip-version-check -r $requirements
+          if ($LASTEXITCODE -ne 0) { throw 'Could not provision exact acceptance CLI toolchain.' }
           python scripts/ci_toolchain_receipt.py verify --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}" --verify-installed
+          if ($LASTEXITCODE -ne 0) { throw 'Acceptance CLI toolchain receipt verification failed.' }
           npm --version
+          if ($LASTEXITCODE -ne 0) { throw 'npm is unavailable on production acceptance runner.' }
           docker --version
+          if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable on production acceptance runner.' }
 
       - name: Bind GitHub artifact identity to transferred build evidence
         env:
           BUILD_ARTIFACT_ID: ${{ needs.ci-build-evidence.outputs.build_artifact_id }}
           BUILD_ARTIFACT_DIGEST: ${{ needs.ci-build-evidence.outputs.build_artifact_digest }}
           BUILD_ARTIFACT_NAME: ci-build-evidence-${{ needs.ci-build-evidence.outputs.source_sha }}
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          test -n "$BUILD_ARTIFACT_ID"
-          test -n "$BUILD_ARTIFACT_DIGEST"
-          python scripts/ci_artifact_identity.py --artifact-id "$BUILD_ARTIFACT_ID" --artifact-digest "$BUILD_ARTIFACT_DIGEST" --artifact-name "$BUILD_ARTIFACT_NAME" --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:BUILD_ARTIFACT_ID)) { throw 'GitHub build artifact id is missing.' }
+          if ([string]::IsNullOrWhiteSpace($env:BUILD_ARTIFACT_DIGEST)) { throw 'GitHub build artifact digest is missing.' }
+          python scripts/ci_artifact_identity.py --artifact-id $env:BUILD_ARTIFACT_ID --artifact-digest $env:BUILD_ARTIFACT_DIGEST --artifact-name $env:BUILD_ARTIFACT_NAME --expected-git-sha "${{ needs.ci-build-evidence.outputs.source_sha }}"
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub artifact identity binding failed.' }
 
       - name: Pull and verify exact immutable acceptance image
         env:
           ACCEPTANCE_CONTAINER_IMAGE: ${{ needs.ci-build-evidence.outputs.container_image }}
           EXPECTED_CONTAINER_DIGEST: ${{ needs.ci-build-evidence.outputs.container_digest }}
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          docker pull "$EXPECTED_CONTAINER_DIGEST"
-          ACTUAL="$(docker inspect --format='{{index .RepoDigests 0}}' "$EXPECTED_CONTAINER_DIGEST")"
-          test "$ACTUAL" = "$EXPECTED_CONTAINER_DIGEST"
-          printf '%s\n' "$ACTUAL" > reports/CI_CONTAINER_REPODIGEST_VERIFIED.txt
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:EXPECTED_CONTAINER_DIGEST)) { throw 'Expected immutable container digest is missing.' }
+          docker pull $env:EXPECTED_CONTAINER_DIGEST
+          if ($LASTEXITCODE -ne 0) { throw 'Could not pull exact immutable acceptance image.' }
+          $actual = (& docker inspect --format='{{index .RepoDigests 0}}' $env:EXPECTED_CONTAINER_DIGEST).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect exact immutable acceptance image.' }
+          if ($actual -ne $env:EXPECTED_CONTAINER_DIGEST) {
+            throw "Immutable container digest mismatch: expected=$env:EXPECTED_CONTAINER_DIGEST actual=$actual"
+          }
+          New-Item -ItemType Directory -Force -Path 'reports' | Out-Null
+          $actual | Set-Content -LiteralPath 'reports/CI_CONTAINER_REPODIGEST_VERIFIED.txt' -Encoding utf8
 
       - name: Fail-closed production real-target preflight
         env:
@@ -369,13 +396,20 @@ jobs:
         run: python scripts/production_acceptance_orchestrator.py --confirm-real-target
 
       - name: Final release gate must remain fail-closed unless every gate is satisfied
-        shell: bash
+        shell: pwsh
         run: |
-          set -o pipefail
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
           python scripts/generate_release_manifest.py
+          if ($LASTEXITCODE -ne 0) { throw 'Release manifest generation failed.' }
           python scripts/generate_project_status.py
+          if ($LASTEXITCODE -ne 0) { throw 'Project status generation failed.' }
           python scripts/verify_release_consistency.py
-          python scripts/release_gate.py | tee reports/CI_RELEASE_GATE.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Release consistency verification failed.' }
+          $gateOutput = & python scripts/release_gate.py 2>&1
+          $gateRc = $LASTEXITCODE
+          $gateOutput | Tee-Object -FilePath 'reports/CI_RELEASE_GATE.txt' | Out-Host
+          if ($gateRc -ne 0) { throw 'Final release gate did not PASS.' }
 
       - name: Upload real-target evidence
         if: always()
