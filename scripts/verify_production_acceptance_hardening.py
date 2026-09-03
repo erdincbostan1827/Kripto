@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 WORKFLOW = Path('.github/workflows/production-acceptance.yml')
+EVIDENCE_WORKFLOW = Path('.github/workflows/phase225-production-build-evidence.yml')
 EXPECTED_UV = "UV_VERSION: '0.12.9'"
 EXPECTED_SCANNERS = (
     "python -m pip install "
@@ -37,6 +38,12 @@ REQUIRED_SNIPPETS = (
     'python scripts/production_acceptance_orchestrator.py --confirm-real-target',
     'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093',
 )
+EVIDENCE_TRIGGER_SNIPPETS = (
+    "- 'backend/**'",
+    "- 'scripts/**'",
+    "- 'config/**'",
+    "- 'tests/**'",
+)
 FORBIDDEN_SNIPPETS = (
     "UV_VERSION: '0.10.0'",
     'IMAGE="ghcr.io/${{ github.repository }}/acceptance:${SHA}"',
@@ -60,9 +67,19 @@ def verify_text(text: str) -> list[str]:
     return problems
 
 
+def verify_evidence_trigger_text(text: str) -> list[str]:
+    problems: list[str] = []
+    for snippet in EVIDENCE_TRIGGER_SNIPPETS:
+        if text.count(snippet) < 2:
+            problems.append(f'EVIDENCE_TRIGGER_COVERAGE_MISSING:{snippet}')
+    return problems
+
+
 def main() -> int:
     text = WORKFLOW.read_text(encoding='utf-8')
+    evidence_text = EVIDENCE_WORKFLOW.read_text(encoding='utf-8')
     problems = verify_text(text)
+    problems.extend(verify_evidence_trigger_text(evidence_text))
     if problems:
         print('\n'.join(problems))
         return 2
@@ -72,6 +89,7 @@ def main() -> int:
     print('bandit_policy=reviewed-finding-set-fingerprint+new-or-changed-findings-fail')
     print('runtime_image_build=backend/Dockerfile:runtime')
     print('ghcr_identity=lowercase_repository+exact_git_sha')
+    print('evidence_trigger_coverage=backend+scripts+config+tests:on-push+pull-request')
     print('real_target_boundary=self-hosted+production-acceptance+challenge-trust')
     return 0
 
