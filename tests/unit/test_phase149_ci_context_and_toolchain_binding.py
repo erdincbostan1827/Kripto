@@ -78,7 +78,7 @@ def test_toolchain_receipt_detects_installed_version_drift(tmp_path: Path, monke
 
 def test_production_acceptance_uses_pinned_uv_and_transferred_exact_toolchain():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "UV_VERSION: '0.10.0'" in text
+    assert "UV_VERSION: '0.12.9'" in text
     assert '"uv==${UV_VERSION}"' in text
     assert "ci_toolchain_receipt.py create" in text
     assert "CI_TOOLCHAIN_RECEIPT.json" in text
