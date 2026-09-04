@@ -40,7 +40,7 @@ from app.services.pipeline import analyze
 
 TELEMETRY_KEY_ENV = "PHASE265_TELEMETRY_HMAC_KEY"
 TESTNET_API_KEY_ENV = "BINANCE_TESTNET_API_KEY"
-TESTNET_API_SECRET_ENV = "BINANCE_TESTNET_API_SECRET"
+TESTNET_SIGNING_ENV = "BINANCE_TESTNET_API_SECRET"
 TESTNET_WS_API = "wss://ws-api.testnet.binance.vision/ws-api/v3"
 TESTNET_REST = "https://testnet.binance.vision"
 ALLOWED_TIMEFRAMES = frozenset({"1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"})
@@ -360,7 +360,7 @@ def private_reconnect_drill(ctx: dict[str, Any], *, timeout_seconds: float) -> d
     if timeout_seconds <= 0 or timeout_seconds > 60:
         raise ValueError("private reconnect timeout must be in (0, 60]")
     api_key = _required_env(TESTNET_API_KEY_ENV)
-    api_secret = _required_env(TESTNET_API_SECRET_ENV)
+    api_secret = _required_env(TESTNET_SIGNING_ENV)
     adapter: ProtectedCampaignRuntimeAdapter = ctx["adapter"]
 
     from websockets.sync.client import connect
