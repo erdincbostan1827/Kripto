@@ -71,6 +71,45 @@ def _fixture(root: Path, *, candidate: str, env_id: str, topology: str) -> str:
     return source_rel
 
 
+def test_git_sha_resolves_detached_loose_and_packed_refs_without_subprocess(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True)
+    detached = "3" * 40
+    loose = "4" * 40
+    packed = "5" * 40
+
+    (git_dir / "HEAD").write_text(detached + "\n", encoding="utf-8")
+    assert builder._git_sha(repo) == detached
+
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    loose_ref = git_dir / "refs/heads/main"
+    loose_ref.parent.mkdir(parents=True)
+    loose_ref.write_text(loose + "\n", encoding="utf-8")
+    assert builder._git_sha(repo) == loose
+
+    loose_ref.unlink()
+    (git_dir / "packed-refs").write_text(f"# pack-refs with: peeled fully-peeled\n{packed} refs/heads/main\n", encoding="utf-8")
+    assert builder._git_sha(repo) == packed
+    assert "subprocess" not in Path(builder.__file__).read_text(encoding="utf-8")
+
+
+def test_git_sha_resolves_linked_worktree_common_refs(tmp_path: Path) -> None:
+    repo = tmp_path / "worktree"
+    repo.mkdir()
+    common = tmp_path / "common.git"
+    worktree_git = common / "worktrees/phase252"
+    worktree_git.mkdir(parents=True)
+    candidate = "6" * 40
+    (repo / ".git").write_text(f"gitdir: {worktree_git}\n", encoding="utf-8")
+    (worktree_git / "commondir").write_text("../..\n", encoding="utf-8")
+    (worktree_git / "HEAD").write_text("ref: refs/heads/phase252\n", encoding="utf-8")
+    common_ref = common / "refs/heads/phase252"
+    common_ref.parent.mkdir(parents=True)
+    common_ref.write_text(candidate + "\n", encoding="utf-8")
+    assert builder._git_sha(repo) == candidate
+
+
 def test_builder_produces_phase251_compatible_exact_sha_bundle(tmp_path: Path, monkeypatch) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
