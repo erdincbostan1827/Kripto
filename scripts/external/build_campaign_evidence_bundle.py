@@ -257,7 +257,7 @@ def build_bundle(
                     raise ValueError(f"SOURCE_CHANGED_DURING_BUILD:{rel}")
                 archive.writestr(_zip_info(rel), data)
 
-        with temp_path.open("rb") as handle:
+        with temp_path.open("rb+") as handle:
             os.fsync(handle.fileno())
 
         with zipfile.ZipFile(temp_path, "r") as archive:
