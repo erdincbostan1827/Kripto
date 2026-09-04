@@ -120,7 +120,7 @@ def _validate_event_payload(kind: str, payload: dict[str, Any]) -> None:
         origin = str(payload.get("market_data_origin", "")).strip().upper()
         if not sample_id or decision not in {"LONG", "EXIT", "HOLD", "SHORT"} or not regime or origin != "REAL":
             raise ValueError("paper_sample requires sample_id, decision, market_regime, and REAL market_data_origin")
-        divergence = float(payload.get("execution_divergence_bps"))
+        divergence = float(str(payload.get("execution_divergence_bps")))
         if not math.isfinite(divergence) or divergence < 0:
             raise ValueError("paper_sample execution_divergence_bps must be finite and non-negative")
     elif kind == "live_shadow_observation":
@@ -135,7 +135,7 @@ def _validate_event_payload(kind: str, payload: dict[str, Any]) -> None:
             raise ValueError("profitability_sample requires OOS split")
         if not str(payload.get("sample_id", "")).strip():
             raise ValueError("profitability_sample requires sample_id")
-        value = float(payload.get("net_return_bps"))
+        value = float(str(payload.get("net_return_bps")))
         if not math.isfinite(value):
             raise ValueError("profitability_sample net_return_bps must be finite")
 
