@@ -3,8 +3,6 @@ name: Phase 262 Final Main Phase245 Dispatch
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
 
 permissions:
   actions: write
