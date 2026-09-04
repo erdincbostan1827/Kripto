@@ -265,7 +265,8 @@ def _status(args: argparse.Namespace) -> int:
 def _seal(args: argparse.Namespace) -> int:
     path = _ensure_collection(args)
     telemetry_key = _telemetry_key(required=True)
-    assert telemetry_key is not None
+    if telemetry_key is None:
+        raise RuntimeError("protected runtime telemetry key unexpectedly unavailable after required validation")
     rows = load_collection(path, telemetry_key=telemetry_key)
     metrics = derive_collection_metrics(rows)
     blockers = acceptance_blockers(metrics)
