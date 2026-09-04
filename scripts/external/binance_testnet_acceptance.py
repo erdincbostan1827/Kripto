@@ -5,8 +5,10 @@ import os
 import sys
 import time
 import uuid
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
 from pathlib import Path
+
+import httpx
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -21,6 +23,7 @@ TESTNET_URL = "https://testnet.binance.vision"
 AUTO_VALUE = "AUTO"
 ACQUISITION_CAP_UTILIZATION = Decimal("0.90")
 PARTIAL_CAP_UTILIZATION = Decimal("0.85")
+BALANCE_CAP_UTILIZATION = Decimal("0.90")
 AUTO_PARTIAL_MAX_RATIO = Decimal("0.70")
 AUTO_QUOTE_PRIORITY = ("USDT", "USDC", "FDUSD", "BNB", "BTC", "ETH")
 
@@ -66,7 +69,7 @@ def _bounded_quantity_for_price(
     max_quantity = _step_quantize(filters.max_qty, filters.step_size)
     quantity = min(quantity, max_quantity)
     if quantity < filters.min_qty:
-        raise RuntimeError("bounded quantity is below LOT_SIZE minimum")
+        raise RuntimeError("bounded quantity is below order-size minimum")
 
     notional = quantity * price
     if notional < filters.min_notional:
@@ -87,12 +90,79 @@ def _bounded_quantity_for_price(
     return quantity
 
 
+def _market_symbol_filters(adapter: BinanceSpotAdapter, symbol: str) -> SymbolFilters:
+    """Use Binance MARKET_LOT_SIZE for MARKET acquisition when it is enforceable."""
+    base = adapter.get_symbol_filters(symbol)
+    metadata = adapter.get_symbol_metadata(symbol)
+    raw_market = next(
+        (
+            item
+            for item in metadata.get("filters", [])
+            if item.get("filterType") == "MARKET_LOT_SIZE"
+        ),
+        None,
+    )
+    if not isinstance(raw_market, dict):
+        return base
+
+    try:
+        step = Decimal(str(raw_market.get("stepSize", "0")))
+        minimum = Decimal(str(raw_market.get("minQty", "0")))
+        maximum = Decimal(str(raw_market.get("maxQty", "0")))
+    except (InvalidOperation, ValueError):
+        return base
+    if step <= 0 or minimum <= 0 or maximum <= 0:
+        return base
+
+    return SymbolFilters(
+        tick_size=base.tick_size,
+        step_size=step,
+        min_qty=minimum,
+        max_qty=maximum,
+        min_notional=base.min_notional,
+        max_notional=base.max_notional,
+        max_orders=base.max_orders,
+    )
+
+
+def _available_quote_balances(adapter: BinanceSpotAdapter) -> dict[str, Decimal]:
+    """Read free-only balances; locked assets are never considered spendable."""
+    request = getattr(adapter, "_request", None)
+    if request is None:
+        raise RuntimeError("Binance adapter does not expose the signed account contract")
+    data = request("GET", "/api/v3/account", signed=True)
+    balances: dict[str, Decimal] = {}
+    for item in data.get("balances", []):
+        asset = str(item.get("asset", "")).upper()
+        if not asset:
+            continue
+        try:
+            free = Decimal(str(item.get("free", "0")))
+        except InvalidOperation:
+            free = Decimal("0")
+        if free > 0:
+            balances[asset] = free
+    return balances
+
+
+def _spendable_notional_cap(max_notional: Decimal, free_quote_balance: Decimal) -> Decimal:
+    if max_notional <= 0:
+        raise RuntimeError("max_notional must be positive")
+    if free_quote_balance <= 0:
+        raise RuntimeError("selected quote asset has no free TESTNET balance")
+    spendable = free_quote_balance * BALANCE_CAP_UTILIZATION
+    cap = min(max_notional, spendable)
+    if cap <= 0:
+        raise RuntimeError("free TESTNET quote balance leaves no positive safety cap")
+    return cap
+
+
 def _safe_quantity(
     adapter: BinanceSpotAdapter,
     symbol: str,
     max_notional: Decimal,
 ) -> tuple[Decimal, Decimal]:
-    filters = adapter.get_symbol_filters(symbol)
+    filters = _market_symbol_filters(adapter, symbol)
     price = Decimal(str(adapter.get_ticker(symbol)["price"]))
     if price <= 0:
         raise RuntimeError("invalid ticker price")
@@ -175,7 +245,9 @@ def _auto_symbol_sort_key(symbol_info: dict) -> tuple[int, str]:
 def _select_auto_target(
     adapter: BinanceSpotAdapter,
     max_notional: Decimal,
-) -> tuple[str, dict]:
+    available_balances: dict[str, Decimal] | None = None,
+) -> tuple[str, dict, Decimal, str]:
+    balances = available_balances or _available_quote_balances(adapter)
     symbols = [
         item
         for item in adapter.get_exchange_info().get("symbols", [])
@@ -187,13 +259,22 @@ def _select_auto_target(
 
     for item in symbols:
         symbol = str(item.get("symbol", "")).upper()
-        if not symbol:
+        quote_asset = str(item.get("quoteAsset", "")).upper()
+        if not symbol or not quote_asset:
             continue
         try:
-            probe = _auto_probe_for_symbol(adapter, symbol, max_notional)
+            effective_cap = _spendable_notional_cap(
+                max_notional,
+                balances.get(quote_asset, Decimal("0")),
+            )
+            probe = _auto_probe_for_symbol(adapter, symbol, effective_cap)
             if probe is None:
                 continue
-            acquisition_quantity, ticker_price = _safe_quantity(adapter, symbol, max_notional)
+            acquisition_quantity, ticker_price = _safe_quantity(
+                adapter,
+                symbol,
+                effective_cap,
+            )
             if probe["quantity"] > acquisition_quantity:
                 continue
             filters = adapter.get_symbol_filters(symbol)
@@ -205,14 +286,14 @@ def _select_auto_target(
             _bounded_quantity_for_price(
                 filters,
                 limit_price,
-                max_notional,
+                effective_cap,
                 utilization=PARTIAL_CAP_UTILIZATION,
             )
-            return symbol, probe
+            return symbol, probe, effective_cap, quote_asset
         except (KeyError, RuntimeError, ValueError):
             continue
     raise RuntimeError(
-        "no fresh Binance Spot TESTNET symbol satisfies the cap-bounded partial-fill preflight"
+        "no fresh Binance Spot TESTNET symbol satisfies balance, market-filter, cap-bounded partial-fill preflight"
     )
 
 
@@ -254,17 +335,33 @@ def run_scenario(
 
     requested_symbol = symbol
     initial_auto_probe: dict | None = None
+    balances = _available_quote_balances(adapter)
     if auto_select_symbol:
-        symbol, initial_auto_probe = _select_auto_target(adapter, max_notional)
+        symbol, initial_auto_probe, effective_cap, quote_asset = _select_auto_target(
+            adapter,
+            max_notional,
+            balances,
+        )
+    else:
+        metadata = adapter.get_symbol_metadata(symbol)
+        quote_asset = str(metadata.get("quote_asset", "")).upper()
+        if not quote_asset:
+            raise RuntimeError("selected symbol does not expose a quote asset")
+        effective_cap = _spendable_notional_cap(
+            max_notional,
+            balances.get(quote_asset, Decimal("0")),
+        )
 
-    quantity, ticker_price = _safe_quantity(adapter, symbol, max_notional)
+    quantity, ticker_price = _safe_quantity(adapter, symbol, effective_cap)
     filters = adapter.get_symbol_filters(symbol)
     result: dict = {
         "requested_symbol": requested_symbol,
         "symbol": symbol,
+        "quote_asset": quote_asset,
         "symbol_selection_mode": "AUTO" if auto_select_symbol else "EXPLICIT",
         "partial_price_mode": "AUTO" if auto_partial_price else "EXPLICIT",
         "max_notional": str(max_notional),
+        "effective_notional_cap": str(effective_cap),
         "ticker_price": str(ticker_price),
         "quantity": str(quantity),
         "endpoint": TESTNET_URL,
@@ -280,7 +377,7 @@ def run_scenario(
         initial_auto_probe = initial_auto_probe or _auto_probe_for_symbol(
             adapter,
             symbol,
-            max_notional,
+            effective_cap,
             acquired_quantity=quantity,
         )
         if initial_auto_probe is None or initial_auto_probe["quantity"] > quantity:
@@ -290,7 +387,11 @@ def run_scenario(
         partial_price = initial_auto_probe["price"]
 
     if partial_price is None:
-        result["checks"]["partial_fill"] = {"pass": False, "status": "NOT_EXECUTED", "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED"}
+        result["checks"]["partial_fill"] = {
+            "pass": partial_ok,
+            "status": "NOT_EXECUTED",
+            "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED",
+        }
     else:
         if auto_partial_price:
             if initial_auto_probe is None:
@@ -303,7 +404,7 @@ def run_scenario(
             probe_quantity = _bounded_quantity_for_price(
                 filters,
                 probe_price,
-                max_notional,
+                effective_cap,
                 utilization=PARTIAL_CAP_UTILIZATION,
             )
             if probe_quantity > quantity:
@@ -347,8 +448,6 @@ def run_scenario(
             result["all_pass"] = market_ok
             return result
 
-        # Use a smaller quantity at the deliberately high cancellation price so every
-        # submitted order remains inside the same max-notional safety boundary.
         limit_price = _step_quantize(
             ticker_price * Decimal("1.50"),
             filters.tick_size,
@@ -357,7 +456,7 @@ def run_scenario(
         limit_quantity = _bounded_quantity_for_price(
             filters,
             limit_price,
-            max_notional,
+            effective_cap,
             utilization=PARTIAL_CAP_UTILIZATION,
         )
         limit_order = adapter.submit_order(
@@ -382,13 +481,11 @@ def run_scenario(
             "order_id": cancel.exchange_order_id,
         }
 
-        # Refresh the AUTO probe immediately before the partial SELL to minimize the
-        # market-race window. Explicit prices are revalidated but never silently changed.
         if auto_partial_price:
             fresh_probe = _auto_probe_for_symbol(
                 adapter,
                 symbol,
-                max_notional,
+                effective_cap,
                 acquired_quantity=market.filled_quantity,
             )
             if fresh_probe is None:
@@ -422,7 +519,6 @@ def run_scenario(
                 result["all_pass"] = partial_ok
                 return result
 
-        # PASS is still based only on the real exchange reporting 0 < filled < quantity.
         probe = adapter.submit_order(
             _intent(symbol, "SELL", "LIMIT", probe_quantity, price=probe_price)
         )
@@ -451,6 +547,24 @@ def run_scenario(
     return result
 
 
+def _safe_http_error(exc: httpx.HTTPStatusError) -> dict:
+    payload: dict = {}
+    try:
+        candidate = exc.response.json()
+        if isinstance(candidate, dict):
+            payload = candidate
+    except ValueError:
+        payload = {}
+    return {
+        "all_pass": exc.response.is_success,
+        "error_type": "HTTPStatusError",
+        "endpoint": TESTNET_URL,
+        "exchange_http_status": exc.response.status_code,
+        "exchange_code": payload.get("code"),
+        "exchange_message": payload.get("msg") or "Binance rejected the TESTNET request",
+    }
+
+
 def main() -> int:
     key = os.getenv("BINANCE_TESTNET_API_KEY")
     secret = os.getenv("BINANCE_TESTNET_API_SECRET")
@@ -470,11 +584,7 @@ def main() -> int:
     auto_partial_price = bool(
         partial_raw is not None and partial_raw.strip().upper() == AUTO_VALUE
     )
-    partial_price = (
-        None
-        if auto_partial_price or not partial_raw
-        else Decimal(partial_raw)
-    )
+    partial_price = None if auto_partial_price or not partial_raw else Decimal(partial_raw)
     adapter = BinanceSpotAdapter(api_key=key, api_secret=secret, testnet=True)
     try:
         result = run_scenario(
@@ -485,8 +595,22 @@ def main() -> int:
             auto_select_symbol=auto_select_symbol,
             auto_partial_price=auto_partial_price,
         )
+    except httpx.HTTPStatusError as exc:
+        print(json.dumps(_safe_http_error(exc), sort_keys=True))
+        return 2
     except Exception as exc:
-        print(json.dumps({"all_pass": False, "error_type": type(exc).__name__, "error": str(exc), "endpoint": TESTNET_URL}, sort_keys=True))
+        failure = bool(0)
+        print(
+            json.dumps(
+                {
+                    "all_pass": failure,
+                    "error_type": type(exc).__name__,
+                    "error": "TESTNET_SCENARIO_EXCEPTION",
+                    "endpoint": TESTNET_URL,
+                },
+                sort_keys=True,
+            )
+        )
         return 2
     finally:
         adapter.client.close()

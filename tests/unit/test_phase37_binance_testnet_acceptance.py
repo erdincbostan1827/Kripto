@@ -17,6 +17,16 @@ class FakeAdapter:
         self.orders = []
         self._partial_id = None
 
+    def _request(self, method, path, *, signed=False, **kwargs):
+        assert method == "GET"
+        assert path == "/api/v3/account"
+        assert signed is True
+        return {
+            "balances": [
+                {"asset": "USDT", "free": "100", "locked": "1000"},
+            ]
+        }
+
     def get_exchange_info(self):
         return {
             "symbols": [
@@ -27,6 +37,13 @@ class FakeAdapter:
                     "orderTypes": ["MARKET", "LIMIT"],
                 }
             ]
+        }
+
+    def get_symbol_metadata(self, symbol):
+        assert symbol == "BTCUSDT"
+        return {
+            "quote_asset": "USDT",
+            "filters": [],
         }
 
     def get_symbol_filters(self, symbol):
