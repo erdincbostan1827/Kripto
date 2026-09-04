@@ -13,18 +13,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.app.release.acceptance_challenge import verify_challenge
-from backend.app.release.campaign_acceptance import verify_campaign_evidence
-from backend.app.release.campaign_evidence_recorder import (
-    EVENT_KINDS,
-    append_event,
-    derive_metrics,
-    initialize_journal,
-    load_journal,
-    write_receipts,
-)
+from backend.app.release.campaign_evidence_recorder import derive_metrics, initialize_journal, load_journal
 
 DEFAULT_JOURNAL = ROOT / "reports/external_acceptance/campaign/source/phase263_campaign.jsonl"
-DEFAULT_OUTPUT = ROOT / "reports/external_acceptance/campaign"
+LEGACY_BLOCKER = (
+    "Phase263 legacy recorder is audit-only. Arbitrary append/finalize is disabled; "
+    "use Phase265 protected-runtime HMAC-attested telemetry and fresh-challenge sealing."
+)
 
 
 def _exact_sha(value: str) -> str:
@@ -37,7 +32,7 @@ def _exact_sha(value: str) -> str:
 def _git_sha() -> str:
     git_dir = ROOT / ".git"
     if not git_dir.is_dir():
-        raise RuntimeError("acceptance recording requires a regular Git checkout with a .git directory")
+        raise RuntimeError("campaign audit requires a regular Git checkout with a .git directory")
     head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
     if not head.startswith("ref: "):
         return _exact_sha(head)
@@ -90,13 +85,6 @@ def _verified_challenge(candidate: str) -> dict[str, Any]:
     return result
 
 
-def _load_payload(path: Path) -> dict[str, Any]:
-    loaded = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict):
-        raise ValueError("event payload must be a JSON object")
-    return loaded
-
-
 def _cmd_init(args: argparse.Namespace) -> int:
     journal = _inside_root(Path(args.journal))
     candidate = _git_sha()
@@ -110,91 +98,76 @@ def _cmd_init(args: argparse.Namespace) -> int:
         acceptance_environment_id_hash=environment_hash,
         topology_hash=topology,
     )
-    print(json.dumps({"initialized": True, "journal": journal.relative_to(ROOT).as_posix(), "header": record}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "classification": "PHASE263_LEGACY_JOURNAL_AUDIT_NOT_ACCEPTANCE_EVIDENCE",
+                "initialized": True,
+                "journal": journal.relative_to(ROOT).as_posix(),
+                "header": record,
+                "blocker": LEGACY_BLOCKER,
+                "production_ready": False,
+                "live_enabled": False,
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 
 def _cmd_append(args: argparse.Namespace) -> int:
-    journal = _inside_root(Path(args.journal))
-    payload_path = Path(args.payload_file).resolve()
-    record = append_event(journal, kind=args.kind, payload=_load_payload(payload_path))
-    print(json.dumps({"appended": True, "sequence": record["sequence"], "kind": record["kind"]}, sort_keys=True))
-    return 0
+    del args
+    raise PermissionError(LEGACY_BLOCKER)
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
     journal = _inside_root(Path(args.journal))
     rows = load_journal(journal)
-    print(json.dumps({"records": len(rows), "metrics": derive_metrics(rows)}, indent=2, sort_keys=True))
-    return 0
-
-
-def _cmd_finalize(args: argparse.Namespace) -> int:
-    journal = _inside_root(Path(args.journal))
-    output = _inside_root(Path(args.output_dir))
-    candidate = _git_sha()
-    rows = load_journal(journal)
-    if rows[0].get("candidate_sha") != candidate:
-        raise PermissionError("campaign journal candidate SHA does not match current git HEAD")
-    _verified_challenge(candidate)
-    _, environment_hash, topology = _environment()
-    if rows[0].get("acceptance_environment_id_hash") != environment_hash or rows[0].get("topology_hash") != topology:
-        raise PermissionError("campaign journal environment/topology binding does not match current acceptance target")
-    written = write_receipts(journal, root=ROOT, output_dir=output)
-    expected_environment = {
-        "acceptance_environment_id_hash": environment_hash,
-        "topology_hash": topology,
-    }
-    results: dict[str, Any] = {}
-    for kind, path in written.items():
-        results[kind] = verify_campaign_evidence(
-            path,
-            kind=kind,
-            root=ROOT,
-            strict_external=True,
-            expected_environment=expected_environment,
-        )
-    selected_all_pass = all(row.get("verified") is True for row in results.values())
     print(
         json.dumps(
             {
-                "classification": "PHASE263_CAMPAIGN_RECORDING_STATUS",
-                "candidate_sha": candidate,
-                "selected_all_pass": selected_all_pass,
-                "live_enabled": False,
+                "classification": "PHASE263_LEGACY_JOURNAL_AUDIT_NOT_ACCEPTANCE_EVIDENCE",
+                "records": len(rows),
+                "metrics": derive_metrics(rows),
+                "blocker": LEGACY_BLOCKER,
                 "production_ready": False,
-                "groups": results,
+                "live_enabled": False,
             },
             indent=2,
             sort_keys=True,
         )
     )
-    return 0 if selected_all_pass else 2
+    return 0
+
+
+def _cmd_finalize(args: argparse.Namespace) -> int:
+    del args
+    raise PermissionError(LEGACY_BLOCKER)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Record tamper-evident real campaign observations and derive Phase246-compatible receipts."
+        description="Legacy Phase263 campaign journal inspection. Acceptance mutation/finalization is disabled."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init")
+    init = sub.add_parser("init", help="Create a challenge-bound legacy audit journal; not acceptance evidence")
     init.add_argument("--journal", default=str(DEFAULT_JOURNAL))
     init.set_defaults(func=_cmd_init)
 
-    append = sub.add_parser("append")
+    append = sub.add_parser("append", help="Disabled: arbitrary event append cannot create acceptance evidence")
     append.add_argument("--journal", default=str(DEFAULT_JOURNAL))
-    append.add_argument("--kind", required=True, choices=sorted(EVENT_KINDS))
+    append.add_argument("--kind", required=True)
     append.add_argument("--payload-file", required=True)
     append.set_defaults(func=_cmd_append)
 
-    status = sub.add_parser("status")
+    status = sub.add_parser("status", help="Inspect a legacy journal without claiming acceptance")
     status.add_argument("--journal", default=str(DEFAULT_JOURNAL))
     status.set_defaults(func=_cmd_status)
 
-    finalize = sub.add_parser("finalize")
+    finalize = sub.add_parser("finalize", help="Disabled: use Phase265 protected-runtime attested sealing")
     finalize.add_argument("--journal", default=str(DEFAULT_JOURNAL))
-    finalize.add_argument("--output-dir", default=str(DEFAULT_OUTPUT))
+    finalize.add_argument("--output-dir", default=str(ROOT / "reports/external_acceptance/campaign"))
     finalize.set_defaults(func=_cmd_finalize)
     return parser
 
@@ -204,7 +177,16 @@ def main() -> int:
     try:
         return int(args.func(args))
     except Exception as exc:
-        print(json.dumps({"error": type(exc).__name__, "message": str(exc), "production_ready": False, "live_enabled": False}))
+        print(
+            json.dumps(
+                {
+                    "error": type(exc).__name__,
+                    "message": str(exc),
+                    "production_ready": False,
+                    "live_enabled": False,
+                }
+            )
+        )
         return 1
 
 
