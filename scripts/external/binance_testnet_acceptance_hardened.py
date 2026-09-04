@@ -14,6 +14,19 @@ if str(ROOT) not in sys.path:
 from scripts.external import binance_testnet_acceptance as base  # noqa: E402
 
 
+def _is_candidate_filter_rejection(exc: httpx.HTTPStatusError) -> bool:
+    """Return true only for Binance candidate-specific filter rejections."""
+    try:
+        payload = exc.response.json()
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    code = payload.get("code")
+    message = str(payload.get("msg", ""))
+    return code == -1013 and message.startswith("Filter failure:")
+
+
 def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
     """Ask Binance TESTNET to validate the exact MARKET quantity without creating an order."""
     request = getattr(adapter, "_request", None)
@@ -33,8 +46,10 @@ def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
             },
             signed=True,
         )
-    except httpx.HTTPStatusError:
-        return False
+    except httpx.HTTPStatusError as exc:
+        if _is_candidate_filter_rejection(exc):
+            return False
+        raise
     return True
 
 
