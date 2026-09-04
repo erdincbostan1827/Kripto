@@ -6,7 +6,6 @@ import json
 import os
 import re
 import stat
-import subprocess
 import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -39,14 +38,99 @@ def _sha_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _git_sha(root: Path) -> str:
+def _read_git_text(path: Path) -> str:
     try:
-        value = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL, timeout=10
-        ).strip().lower()
-    except Exception:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return ""
+
+
+def _resolve_git_dirs(root: Path) -> tuple[Path | None, Path | None]:
+    marker = root / ".git"
+    if marker.is_dir():
+        git_dir = marker.resolve()
+    elif marker.is_file():
+        marker_text = _read_git_text(marker)
+        prefix = "gitdir: "
+        if not marker_text.lower().startswith(prefix):
+            return None, None
+        gitdir_value = marker_text[len(prefix) :].strip()
+        if not gitdir_value:
+            return None, None
+        git_dir = (marker.parent / gitdir_value).resolve()
+    else:
+        return None, None
+
+    common_dir = git_dir
+    commondir_text = _read_git_text(git_dir / "commondir")
+    if commondir_text:
+        common_dir = (git_dir / commondir_text).resolve()
+    return git_dir, common_dir
+
+
+def _safe_git_ref(value: str) -> str | None:
+    if not value.startswith("refs/") or "\\" in value or "\x00" in value:
+        return None
+    pure = PurePosixPath(value)
+    if any(part in {"", ".", ".."} for part in pure.parts):
+        return None
+    return pure.as_posix()
+
+
+def _loose_ref_sha(base: Path, ref_name: str) -> str | None:
+    target = base.joinpath(*PurePosixPath(ref_name).parts)
+    value = _read_git_text(target).lower()
+    return value if GIT_SHA_RE.fullmatch(value) else None
+
+
+def _packed_ref_sha(path: Path, ref_name: str) -> str | None:
+    text = _read_git_text(path)
+    if not text:
+        return None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("^"):
+            continue
+        fields = stripped.split(" ", 1)
+        if len(fields) != 2 or fields[1] != ref_name:
+            continue
+        value = fields[0].lower()
+        return value if GIT_SHA_RE.fullmatch(value) else None
+    return None
+
+
+def _git_sha(root: Path) -> str:
+    git_dir, common_dir = _resolve_git_dirs(root)
+    if git_dir is None or common_dir is None:
         return "UNAVAILABLE"
-    return value if GIT_SHA_RE.fullmatch(value) else "UNAVAILABLE"
+
+    head = _read_git_text(git_dir / "HEAD")
+    detached = head.lower()
+    if GIT_SHA_RE.fullmatch(detached):
+        return detached
+    if not head.startswith("ref: "):
+        return "UNAVAILABLE"
+
+    ref_name = _safe_git_ref(head[5:].strip())
+    if ref_name is None:
+        return "UNAVAILABLE"
+
+    ref_dirs = (git_dir, common_dir) if git_dir != common_dir else (git_dir,)
+    for base in ref_dirs:
+        loose = _loose_ref_sha(base, ref_name)
+        if loose is not None:
+            return loose
+
+    packed_paths = (git_dir / "packed-refs", common_dir / "packed-refs")
+    seen: set[Path] = set()
+    for packed_path in packed_paths:
+        if packed_path in seen:
+            continue
+        seen.add(packed_path)
+        packed = _packed_ref_sha(packed_path, ref_name)
+        if packed is not None:
+            return packed
+    return "UNAVAILABLE"
 
 
 def _safe_rel(value: str) -> str:
