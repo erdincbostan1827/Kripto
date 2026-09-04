@@ -1,0 +1,52 @@
+name: Phase 262 Issue 47 Phase245 Dispatch Router
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: read
+  issues: read
+
+concurrency:
+  group: phase262-issue47-phase245-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch-phase245:
+    if: >-
+      github.repository == 'erdincbostan1827/Kripto' &&
+      github.event.issue.number == 47 &&
+      github.event.comment.user.login == 'erdincbostan1827' &&
+      github.event.comment.body == '/phase245-final'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch Phase245 for exact default-branch SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_REF: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Refusing non-exact candidate SHA: $CANDIDATE_REF" >&2
+            exit 2
+          fi
+          echo "Dispatching Phase245 for exact candidate: $CANDIDATE_REF"
+          gh workflow run phase245-binance-testnet-acceptance.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f candidate_ref="$CANDIDATE_REF" \
+            -f symbol=AUTO \
+            -f max_notional=15 \
+            -f partial_price=AUTO
+          echo "PHASE262_DISPATCH_REQUEST=ACCEPTED"
+          echo "candidate_ref=$CANDIDATE_REF"
+
+      - name: Record router truth boundary
+        shell: bash
+        run: |
+          echo "This router only requests the existing Phase245 workflow."
+          echo "Router success is not Phase245 acceptance evidence and never authorizes LIVE trading."
