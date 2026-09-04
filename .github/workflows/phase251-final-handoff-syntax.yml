@@ -1,0 +1,56 @@
+name: Phase 251 Final Campaign Handoff Syntax
+
+on:
+  pull_request:
+    paths:
+      - 'tools/run_phase251_final_production_acceptance.ps1'
+      - 'scripts/external/final_campaign_bundle_handoff.py'
+      - 'tests/test_phase251_final_campaign_handoff_contract.py'
+      - '.github/workflows/phase251-final-handoff-syntax.yml'
+      - '.github/workflows/production-acceptance.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/run_phase251_final_production_acceptance.ps1'
+      - 'scripts/external/final_campaign_bundle_handoff.py'
+      - 'tests/test_phase251_final_campaign_handoff_contract.py'
+      - '.github/workflows/phase251-final-handoff-syntax.yml'
+      - '.github/workflows/production-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  final-handoff-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Parse Phase 251 PowerShell wrapper
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'tools/run_phase251_final_production_acceptance.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -ne 0) {
+            foreach ($parseError in $errors) {
+              Write-Error "$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)"
+            }
+            throw "PowerShell parser found $($errors.Count) syntax error(s)."
+          }
+          Write-Host 'Phase 251 PowerShell syntax: PASS'
+
+      - name: Compile handoff helper
+        shell: powershell
+        run: |
+          python -m py_compile scripts/external/final_campaign_bundle_handoff.py
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 251 Python helper compile failed.' }
+
+      - name: Verify Phase 251 static contract
+        shell: powershell
+        run: |
+          python -m pytest -q tests/test_phase251_final_campaign_handoff_contract.py
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 251 contract test failed.' }
