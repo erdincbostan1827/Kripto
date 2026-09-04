@@ -4,7 +4,6 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,8 +27,35 @@ DEFAULT_JOURNAL = ROOT / "reports/external_acceptance/campaign/source/phase263_c
 DEFAULT_OUTPUT = ROOT / "reports/external_acceptance/campaign"
 
 
+def _exact_sha(value: str) -> str:
+    candidate = value.strip().lower()
+    if len(candidate) != 40 or any(c not in "0123456789abcdef" for c in candidate):
+        raise ValueError("git HEAD must resolve to an exact 40-char commit SHA")
+    return candidate
+
+
 def _git_sha() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip().lower()
+    git_dir = ROOT / ".git"
+    if not git_dir.is_dir():
+        raise RuntimeError("acceptance recording requires a regular Git checkout with a .git directory")
+    head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    if not head.startswith("ref: "):
+        return _exact_sha(head)
+    ref = head[5:].strip()
+    if not ref.startswith("refs/") or ".." in ref.split("/"):
+        raise ValueError("git HEAD contains an unsafe ref")
+    loose = git_dir / Path(*ref.split("/"))
+    if loose.is_file():
+        return _exact_sha(loose.read_text(encoding="utf-8").strip())
+    packed = git_dir / "packed-refs"
+    if packed.is_file():
+        for line in packed.read_text(encoding="utf-8").splitlines():
+            if not line or line.startswith(("#", "^")):
+                continue
+            parts = line.split(" ", 1)
+            if len(parts) == 2 and parts[1].strip() == ref:
+                return _exact_sha(parts[0])
+    raise RuntimeError("git HEAD ref could not be resolved without invoking an external process")
 
 
 def _inside_root(path: Path) -> Path:
