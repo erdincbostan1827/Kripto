@@ -298,8 +298,14 @@ def restore_runtime_state(
     private_positions = private.get("positions")
     if not isinstance(seen_trades, list):
         raise ValueError("Phase266 private seen-trade state is invalid")
-    if not all(isinstance(value, dict) for value in (order_states, order_progress, balances, private_positions)):
-        raise ValueError("Phase266 private runtime-state is invalid")
+    if not isinstance(order_states, dict):
+        raise ValueError("Phase266 private order-state section is invalid")
+    if not isinstance(order_progress, dict):
+        raise ValueError("Phase266 private order-progress section is invalid")
+    if not isinstance(balances, dict):
+        raise ValueError("Phase266 private balance section is invalid")
+    if not isinstance(private_positions, dict):
+        raise ValueError("Phase266 private position section is invalid")
     projector.seen_trades = {str(value) for value in seen_trades}
     projector.order_states = {str(key): str(value) for key, value in order_states.items()}
     projector.order_progress = {
