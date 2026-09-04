@@ -85,20 +85,17 @@ jobs:
             throw "Phase266 refuses a stale candidate. checked_out=$head candidate=$candidate"
           }
 
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
-            'User-Agent' = 'kripto-phase266'
-          }
-          $main = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/branches/main"
+          $mainJson = gh api "repos/$env:GITHUB_REPOSITORY/branches/main"
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve current main through GitHub CLI.' }
+          $main = $mainJson | ConvertFrom-Json
           $mainSha = ([string]$main.commit.sha).Trim().ToLowerInvariant()
           if ($mainSha -ne $candidate) {
             throw "Phase266 refuses non-current main candidate. main=$mainSha candidate=$candidate"
           }
 
-          $runsUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$candidate&event=workflow_dispatch&status=success&per_page=100"
-          $runs = Invoke-RestMethod -Headers $headers -Uri $runsUri
+          $runsJson = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$candidate&event=workflow_dispatch&status=success&per_page=100"
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve Phase245 workflow history through GitHub CLI.' }
+          $runs = $runsJson | ConvertFrom-Json
           $matches = @(
             $runs.workflow_runs | Where-Object {
               ([string]$_.head_sha).ToLowerInvariant() -eq $candidate -and
