@@ -47,7 +47,8 @@ def _signed_query(params: dict[str, Any], signing_material: str) -> str:
 
 def _server_time(client: httpx.Client) -> int:
     response = client.get("/api/v3/time")
-    response.raise_for_status()
+    if response.status_code != 200:
+        raise RuntimeError(f"Binance TESTNET time endpoint failed with status={response.status_code}")
     payload = response.json()
     timestamp = int(payload.get("serverTime", 0))
     if timestamp <= 0:
@@ -66,7 +67,8 @@ def _signed_rest(
 ) -> dict[str, Any]:
     signed = _signed_query(params, signing_material)
     response = client.request(method, f"{path}?{signed}", headers={"X-MBX-APIKEY": api_key})
-    response.raise_for_status()
+    if response.status_code < 200 or response.status_code >= 300:
+        raise RuntimeError(f"Binance TESTNET signed REST {path} failed with status={response.status_code}")
     payload = response.json()
     if not isinstance(payload, dict):
         raise RuntimeError("Binance TESTNET signed REST response must be an object")
@@ -217,7 +219,7 @@ def qualify_private_stream(
                 path="/api/v3/account",
                 api_key=api_key,
                 signing_material=signing_material,
-                params={"omitZeroBalances": "false", "recvWindow": 5000, "timestamp": _server_time(client)},
+                params={"recvWindow": 5000, "timestamp": _server_time(client)},
             )
             all_rest_balances = _rest_balances(account)
             projected_assets = set(adapter.private_projector.balances)
