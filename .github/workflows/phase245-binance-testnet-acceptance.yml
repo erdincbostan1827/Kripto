@@ -9,9 +9,9 @@ on:
         required: true
         type: string
       symbol:
-        description: Binance Spot TESTNET symbol
+        description: Binance Spot TESTNET symbol or AUTO for runtime fail-closed selection
         required: true
-        default: BTCUSDT
+        default: AUTO
         type: string
       max_notional:
         description: TESTNET-only safety cap in quote currency; must be >0 and <=15
@@ -19,8 +19,9 @@ on:
         default: '15'
         type: string
       partial_price:
-        description: TESTNET-only limit probe price required to demonstrate a real partial fill
+        description: Positive TESTNET limit probe price or AUTO for runtime fresh order-book selection
         required: true
+        default: AUTO
         type: string
 
 permissions:
@@ -83,7 +84,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
 
           $symbol = ([string]$env:BINANCE_TESTNET_SYMBOL).Trim().ToUpperInvariant()
-          if ($symbol -notmatch '^[A-Z0-9]{5,20}$') { throw 'Invalid Binance TESTNET symbol.' }
+          $autoSymbol = ($symbol -eq 'AUTO')
+          if (-not $autoSymbol -and $symbol -notmatch '^[A-Z0-9]{5,20}$') {
+            throw 'Invalid Binance TESTNET symbol; use AUTO or ^[A-Z0-9]{5,20}$.'
+          }
+
           $culture = [Globalization.CultureInfo]::InvariantCulture
           $style = [Globalization.NumberStyles]::Number
           [decimal]$maxNotional = 0
@@ -93,13 +98,26 @@ jobs:
           if ($maxNotional -le 0 -or $maxNotional -gt 15) {
             throw 'BINANCE_TESTNET_MAX_NOTIONAL must be >0 and <=15.'
           }
-          [decimal]$partialPrice = 0
-          if (-not [decimal]::TryParse(([string]$env:BINANCE_TESTNET_PARTIAL_PRICE), $style, $culture, [ref]$partialPrice)) {
-            throw 'BINANCE_TESTNET_PARTIAL_PRICE must be a decimal number.'
+
+          $partialRaw = ([string]$env:BINANCE_TESTNET_PARTIAL_PRICE).Trim().ToUpperInvariant()
+          $autoPartial = ($partialRaw -eq 'AUTO')
+          $partialCanonical = 'AUTO'
+          if (-not $autoPartial) {
+            [decimal]$partialPrice = 0
+            if (-not [decimal]::TryParse(([string]$env:BINANCE_TESTNET_PARTIAL_PRICE), $style, $culture, [ref]$partialPrice)) {
+              throw 'BINANCE_TESTNET_PARTIAL_PRICE must be AUTO or a decimal number.'
+            }
+            if ($partialPrice -le 0) { throw 'BINANCE_TESTNET_PARTIAL_PRICE must be >0.' }
+            $partialCanonical = $partialPrice.ToString($culture)
           }
-          if ($partialPrice -le 0) { throw 'BINANCE_TESTNET_PARTIAL_PRICE must be >0.' }
+          if ($autoSymbol -and -not $autoPartial) {
+            throw 'AUTO symbol selection requires partial_price=AUTO.'
+          }
+
           $env:BINANCE_TESTNET_SYMBOL = $symbol
+          $env:BINANCE_TESTNET_PARTIAL_PRICE = $partialCanonical
           "BINANCE_TESTNET_SYMBOL=$symbol" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BINANCE_TESTNET_PARTIAL_PRICE=$partialCanonical" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Enforce TESTNET-only secret scope
         shell: pwsh
@@ -156,7 +174,7 @@ jobs:
           $identityDir = Join-Path $PWD 'reports/phase245'
           New-Item -ItemType Directory -Force -Path $identityDir | Out-Null
           $identity = [ordered]@{
-            schema_version = '1.0'
+            schema_version = '1.1'
             classification = 'PHASE245_BINANCE_TESTNET_TARGET_IDENTITY_NOT_ACCEPTANCE_EVIDENCE'
             candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
             runner_name = $env:RUNNER_NAME
@@ -166,10 +184,10 @@ jobs:
             acceptance_environment_id = $acceptanceEnvironmentId
             topology_hash = $topologyHash
             exchange_endpoint = 'https://testnet.binance.vision'
-            symbol = $env:BINANCE_TESTNET_SYMBOL
+            requested_symbol = $env:BINANCE_TESTNET_SYMBOL
             max_notional = $env:BINANCE_TESTNET_MAX_NOTIONAL
-            partial_price = $env:BINANCE_TESTNET_PARTIAL_PRICE
-            truth_policy = 'This identity receipt binds the TESTNET attempt to the exact source, Windows runner and isolated topology. Credentials are never recorded; PASS still requires the hard-pinned Binance Spot TESTNET scenario to succeed.'
+            requested_partial_price = $env:BINANCE_TESTNET_PARTIAL_PRICE
+            truth_policy = 'This identity receipt binds the TESTNET attempt to exact source, Windows runner and isolated topology. AUTO selection, when requested, occurs only inside the hard-pinned TESTNET scenario immediately before execution. Credentials are never recorded.'
           }
           $identity | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $identityDir 'BINANCE_TESTNET_TARGET_IDENTITY.json') -Encoding utf8
 
@@ -221,6 +239,10 @@ jobs:
           $limitOrderPass = $false
           $cancelPass = $false
           $partialFillPass = $false
+          $selectedSymbol = ''
+          $selectedProbePrice = ''
+          $symbolSelectionMode = ''
+          $partialPriceMode = ''
 
           if ((Test-Path -LiteralPath $runtimePath -PathType Leaf) -and (Test-Path -LiteralPath $testnetPath -PathType Leaf)) {
             $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
@@ -241,6 +263,12 @@ jobs:
                 $limitOrderPass = ($scenario.checks.limit_order.pass -eq $true)
                 $cancelPass = ($scenario.checks.cancel.pass -eq $true)
                 $partialFillPass = ($scenario.checks.partial_fill.pass -eq $true)
+                $selectedSymbol = [string]$scenario.symbol
+                $symbolSelectionMode = [string]$scenario.symbol_selection_mode
+                $partialPriceMode = [string]$scenario.partial_price_mode
+                if ($null -ne $scenario.checks.partial_fill.PSObject.Properties['probe_price']) {
+                  $selectedProbePrice = [string]$scenario.checks.partial_fill.probe_price
+                }
               }
             }
 
@@ -277,7 +305,7 @@ jobs:
           }
 
           $result = [ordered]@{
-            schema_version = '1.0'
+            schema_version = '1.1'
             classification = 'PHASE245_BINANCE_TESTNET_ACCEPTANCE_WORKFLOW_RESULT'
             candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
             runner_name = $env:RUNNER_NAME
@@ -293,9 +321,15 @@ jobs:
             limit_order_pass = $limitOrderPass
             cancel_pass = $cancelPass
             partial_fill_pass = $partialFillPass
+            requested_symbol = $env:BINANCE_TESTNET_SYMBOL
+            requested_partial_price = $env:BINANCE_TESTNET_PARTIAL_PRICE
+            selected_symbol = $selectedSymbol
+            selected_probe_price = $selectedProbePrice
+            symbol_selection_mode = $symbolSelectionMode
+            partial_price_mode = $partialPriceMode
             production_ready = $false
             live_enabled = $false
-            truth_policy = 'Phase 245 PASS closes only the exact-SHA credentialed Binance Spot TESTNET scenario for this target. TESTNET uses simulated exchange funds and does not authorize real-money LIVE trading or close campaign/signing gates.'
+            truth_policy = 'Phase 245 PASS closes only the exact-SHA credentialed Binance Spot TESTNET scenario for this target. AUTO selection is TESTNET-only and fail-closed. TESTNET uses simulated exchange funds and does not authorize real-money LIVE trading or close campaign/signing gates.'
           }
           $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outDir 'PHASE245_BINANCE_TESTNET_RESULT.json') -Encoding utf8
           $result | ConvertTo-Json -Depth 8 | Out-Host
