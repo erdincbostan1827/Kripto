@@ -65,3 +65,26 @@ jobs:
             echo 'Forbidden WebSocket order method found in Phase266 runner.' >&2
             exit 1
           fi
+
+  phase266-powershell-syntax:
+    name: phase266-powershell-syntax
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Parse Phase266 PowerShell wrapper
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'tools/run_phase266_campaign_runtime.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -ne 0) {
+            foreach ($parseError in $errors) {
+              Write-Error "$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)"
+            }
+            throw "PowerShell parser found $($errors.Count) syntax error(s)."
+          }
+          Write-Host 'Phase266 PowerShell syntax: PASS'
