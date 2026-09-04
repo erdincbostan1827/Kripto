@@ -1,0 +1,305 @@
+name: Phase 266 Protected Campaign Sampling
+
+on:
+  workflow_run:
+    workflows:
+      - Phase 245 Binance TESTNET Acceptance
+    types: [completed]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Optional exact current-main SHA; empty means current main
+        required: false
+        type: string
+      symbol:
+        description: Binance Spot symbol
+        required: false
+        default: BTCUSDT
+        type: string
+      timeframe:
+        description: Strategy timeframe
+        required: false
+        default: 1h
+        type: choice
+        options:
+          - 15m
+          - 30m
+          - 1h
+          - 4h
+          - 1d
+      max_cycles:
+        description: Real strategy samples in this run
+        required: false
+        default: '4'
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: phase266-protected-campaign-sampling
+  cancel-in-progress: false
+
+jobs:
+  protected-campaign-sampling:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 45
+    env:
+      PYTHON_VERSION: '3.12.10'
+      UV_VERSION: '0.12.9'
+
+    steps:
+      - name: Resolve requested exact candidate
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_CANDIDATE: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:EVENT_NAME -eq 'workflow_run') {
+            $candidate = ([string]$env:WORKFLOW_RUN_SHA).Trim().ToLowerInvariant()
+          } elseif (-not [string]::IsNullOrWhiteSpace([string]$env:INPUT_CANDIDATE)) {
+            $candidate = ([string]$env:INPUT_CANDIDATE).Trim().ToLowerInvariant()
+          } else {
+            $candidate = ''
+          }
+          if ($candidate -and $candidate -notmatch '^[0-9a-f]{40}$') {
+            throw "Phase266 candidate must be an exact 40-character SHA: $candidate"
+          }
+          "PHASE266_REQUESTED_CANDIDATE=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Checkout current main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          fetch-depth: 0
+          clean: true
+
+      - name: Enforce current-main candidate and exact-SHA Phase245 prerequisite
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') {
+            throw 'Could not resolve exact current main SHA.'
+          }
+          $candidate = ([string]$env:PHASE266_REQUESTED_CANDIDATE).Trim().ToLowerInvariant()
+          if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = $head }
+          if ($candidate -ne $head) {
+            throw "Phase266 refuses a stale/non-current candidate. main=$head candidate=$candidate"
+          }
+
+          $secureToken = ConvertTo-SecureString $env:GH_TOKEN -AsPlainText -Force
+          $headers = @{
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+            'User-Agent' = 'kripto-phase266'
+          }
+          $runsUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$candidate&event=workflow_dispatch&status=success&per_page=100"
+          $runs = Invoke-RestMethod -Authentication Bearer -Token $secureToken -Headers $headers -Uri $runsUri
+          $matches = @(
+            $runs.workflow_runs | Where-Object {
+              ([string]$_.head_sha).ToLowerInvariant() -eq $candidate -and
+              ([string]$_.path) -eq '.github/workflows/phase245-binance-testnet-acceptance.yml' -and
+              ([string]$_.conclusion) -eq 'success'
+            }
+          )
+          if ($matches.Count -lt 1) {
+            throw "No successful exact-SHA Phase245 Binance TESTNET acceptance exists for $candidate"
+          }
+          "PHASE266_CANDIDATE=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PHASE266_PHASE245_RUN_ID=$($matches[0].id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Install and verify locked runtime
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python -m pip install "uv==$env:UV_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned uv installation failed.' }
+          uv sync --locked --extra test
+          if ($LASTEXITCODE -ne 0) { throw 'Locked environment installation failed.' }
+          .\.venv\Scripts\python.exe scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+      - name: Bind stable protected runner identity and topology
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -ne 'Windows') {
+            throw 'Phase266 persistent campaign state requires the protected Windows production-acceptance runner.'
+          }
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $workspaceParent = Split-Path -Parent $workspace
+          $stateBase = Join-Path $workspaceParent '_phase266_protected_campaign_state'
+          New-Item -ItemType Directory -Force -Path $stateBase | Out-Null
+
+          $topologyFiles = @(
+            'docker-compose.yml',
+            'docker-compose.prod.yml',
+            '.env.example',
+            'pyproject.toml',
+            'uv.lock'
+          )
+          $lines = foreach ($path in $topologyFiles) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Topology source missing: $path" }
+            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$path=$hash"
+          }
+          $canonical = ($lines -join "`n") + "`n"
+          $bytes = [Text.Encoding]::UTF8.GetBytes($canonical)
+          $sha = [Security.Cryptography.SHA256]::Create()
+          try {
+            $topologyHash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+          } finally {
+            $sha.Dispose()
+          }
+          $environmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign"
+
+          "PHASE266_STATE_DIR=$stateBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_ENVIRONMENT_ID=$environmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_TOPOLOGY_HASH=$topologyHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Load or create DPAPI-protected telemetry attestation key
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $env:PHASE266_STATE_DIR '_phase265_telemetry_key.dpapi'
+          if (-not (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
+            $random = New-Object byte[] 64
+            [Security.Cryptography.RandomNumberGenerator]::Fill($random)
+            $plain = [Convert]::ToBase64String($random)
+            $secure = ConvertTo-SecureString $plain -AsPlainText -Force
+            (ConvertFrom-SecureString $secure) | Set-Content -LiteralPath $keyPath -Encoding ascii -NoNewline
+          }
+          $encrypted = (Get-Content -LiteralPath $keyPath -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($encrypted)) { throw 'DPAPI telemetry key file is empty.' }
+          $secure = $encrypted | ConvertTo-SecureString
+          $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+          try {
+            $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+          } finally {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+          }
+          if ([Text.Encoding]::UTF8.GetByteCount($plain) -lt 32) { throw 'Recovered telemetry key is too short.' }
+          Write-Output "::add-mask::$plain"
+          "PHASE265_TELEMETRY_HMAC_KEY=$plain" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Accumulate fresh strategy-bound PAPER and live-shadow samples
+        shell: pwsh
+        env:
+          INPUT_SYMBOL: ${{ inputs.symbol }}
+          INPUT_TIMEFRAME: ${{ inputs.timeframe }}
+          INPUT_MAX_CYCLES: ${{ inputs.max_cycles }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $symbol = ([string]$env:INPUT_SYMBOL).Trim().ToUpperInvariant()
+          if ([string]::IsNullOrWhiteSpace($symbol)) { $symbol = 'BTCUSDT' }
+          $timeframe = ([string]$env:INPUT_TIMEFRAME).Trim()
+          if ([string]::IsNullOrWhiteSpace($timeframe)) { $timeframe = '1h' }
+          $cyclesText = ([string]$env:INPUT_MAX_CYCLES).Trim()
+          if ([string]::IsNullOrWhiteSpace($cyclesText)) { $cyclesText = '4' }
+          [int]$cycles = 0
+          if (-not [int]::TryParse($cyclesText, [ref]$cycles) -or $cycles -lt 1 -or $cycles -gt 12) {
+            throw 'Phase266 max_cycles must be an integer in [1,12].'
+          }
+
+          .\tools\run_phase266_campaign_runtime.ps1 `
+            -Action StrategyLoop `
+            -CandidateRef $env:PHASE266_CANDIDATE `
+            -StateDirectory $env:PHASE266_STATE_DIR `
+            -EnvironmentId $env:ACCEPTANCE_ENVIRONMENT_ID `
+            -TopologyHash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            -Symbol $symbol `
+            -Timeframe $timeframe `
+            -PaperNotional 10 `
+            -LatencyMs 50 `
+            -TimeoutSeconds 10 `
+            -IntervalSeconds 300 `
+            -MaxCycles $cycles
+
+      - name: Run credentialed TESTNET private reconnect drill
+        shell: pwsh
+        env:
+          BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+          BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          .\tools\run_phase266_campaign_runtime.ps1 `
+            -Action PrivateReconnectDrill `
+            -CandidateRef $env:PHASE266_CANDIDATE `
+            -StateDirectory $env:PHASE266_STATE_DIR `
+            -EnvironmentId $env:ACCEPTANCE_ENVIRONMENT_ID `
+            -TopologyHash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            -TimeoutSeconds 30
+
+      - name: Capture fail-closed campaign status
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'reports/phase266' | Out-Null
+          $status = & .\.venv\Scripts\python.exe scripts/external/phase266_campaign_runtime.py `
+            --candidate $env:PHASE266_CANDIDATE `
+            --state-dir $env:PHASE266_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            status
+          if ($LASTEXITCODE -ne 0) { throw 'Phase266 status capture failed.' }
+          $status | Set-Content -LiteralPath 'reports/phase266/STATUS.json' -Encoding utf8
+          $parsed = Get-Content -LiteralPath 'reports/phase266/STATUS.json' -Raw | ConvertFrom-Json
+          if ($parsed.candidate_sha -ne $env:PHASE266_CANDIDATE) { throw 'Phase266 status candidate mismatch.' }
+          if ($parsed.live_enabled -ne $false -or $parsed.production_ready -ne $false) {
+            throw 'Phase266 safety truth boundary was violated.'
+          }
+          $blockers = @($parsed.blockers)
+          "### Phase266 protected campaign progress" >> $env:GITHUB_STEP_SUMMARY
+          "- candidate: ``$($parsed.candidate_sha)``" >> $env:GITHUB_STEP_SUMMARY
+          "- exact-SHA Phase245 prerequisite run: ``$env:PHASE266_PHASE245_RUN_ID``" >> $env:GITHUB_STEP_SUMMARY
+          "- acceptance-eligible events: ``$($parsed.event_counts.acceptance_eligible)``" >> $env:GITHUB_STEP_SUMMARY
+          "- PAPER days: ``$($parsed.metrics.paper.calendar_days)`` / 30" >> $env:GITHUB_STEP_SUMMARY
+          "- PAPER effective samples: ``$($parsed.metrics.paper.effective_sample_size)`` / 100" >> $env:GITHUB_STEP_SUMMARY
+          "- PAPER LONG/EXIT: ``$($parsed.metrics.paper.long_examples)`` / ``$($parsed.metrics.paper.exit_examples)``" >> $env:GITHUB_STEP_SUMMARY
+          "- live-shadow days: ``$($parsed.metrics.'live-shadow'.calendar_days)`` / 7" >> $env:GITHUB_STEP_SUMMARY
+          "- live-shadow observations: ``$($parsed.metrics.'live-shadow'.observations)`` / 100" >> $env:GITHUB_STEP_SUMMARY
+          "- blockers: ``$($blockers -join ',')``" >> $env:GITHUB_STEP_SUMMARY
+          "- LIVE trading: disabled" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload sanitized progress evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase266-protected-campaign-status-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: reports/phase266/STATUS.json
+
+      - name: Erase process-scoped secrets
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item Env:PHASE265_TELEMETRY_HMAC_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:BINANCE_TESTNET_API_KEY -ErrorAction SilentlyContinue
+          Remove-Item Env:BINANCE_TESTNET_API_SECRET -ErrorAction SilentlyContinue
