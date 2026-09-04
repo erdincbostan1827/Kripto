@@ -46,7 +46,20 @@ ACCEPTANCE_PLANS: Final[dict[str, tuple[tuple[str, tuple[str, ...], bool], ...]]
     "pitr": (("pitr_drill", ("python", "scripts/external/run_approved_drill.py", "pitr"), True),),
     "ha": (("ha_drill", ("python", "scripts/external/run_approved_drill.py", "ha"), True),),
     "worm": (("worm_storage", ("python", "scripts/external/run_approved_drill.py", "worm"), True),),
-    "testnet": (("binance_testnet", ("python", "scripts/external/binance_testnet_acceptance.py"), True),),
+    "testnet": ((
+        "binance_testnet",
+        (
+            "docker", "compose", "run", "--rm",
+            "-e", "BINANCE_TESTNET_API_KEY",
+            "-e", "BINANCE_TESTNET_API_SECRET",
+            "-e", "BINANCE_TESTNET_EXECUTE",
+            "-e", "BINANCE_TESTNET_SYMBOL",
+            "-e", "BINANCE_TESTNET_MAX_NOTIONAL",
+            "-e", "BINANCE_TESTNET_PARTIAL_PRICE",
+            "app", "python", "scripts/external/binance_testnet_acceptance.py",
+        ),
+        True,
+    ),),
     "provenance": (
         ("ci_provenance_capture", ("python", "scripts/external/provenance_capture.py"), True),
         ("artifact_sign_verify", ("python", "scripts/external/run_approved_drill.py", "provenance"), True),
