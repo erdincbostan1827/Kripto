@@ -81,6 +81,21 @@ def _sha(path: Path) -> str:
     return sha256(path.read_bytes()).hexdigest()
 
 
+def _trust_command_argv(command: str, *, platform_name: str | None = None) -> list[str]:
+    """Return the platform-native shell argv for the configured trust verifier.
+
+    The verifier remains an explicit external trust boundary. Windows production
+    acceptance runners execute workflow steps with PowerShell, so invoking their
+    configured verifier through ``bash -lc`` can reject an otherwise valid trust
+    command. Keep the existing POSIX contract unchanged and use PowerShell 7 on
+    Windows; any missing shell or command failure still fails closed in the caller.
+    """
+    effective_platform = os.name if platform_name is None else platform_name
+    if effective_platform == "nt":
+        return ["pwsh", "-NoProfile", "-NonInteractive", "-Command", command]
+    return ["bash", "-lc", command]
+
+
 def create_challenge(root: Path, output: Path) -> dict[str, Any]:
     output = resolve_without_symlink_components(root, output)
     git_commit_sha = _git_sha(root)
@@ -171,7 +186,7 @@ def verify_challenge(path: Path, *, root: Path, max_age_hours: int = 24, require
         env = dict(os.environ)
         env["ACCEPTANCE_CHALLENGE_PATH"] = str(path.resolve())
         try:
-            proc = run_captured(["bash", "-lc", trust_command], cwd=root, env=env, timeout=60)
+            proc = run_captured(_trust_command_argv(trust_command), cwd=root, env=env, timeout=60)
             if proc.returncode == 0:
                 trust_status = "VERIFIED_BY_EXTERNAL_COMMAND"
             else:
