@@ -21,12 +21,30 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: '3.12.10'
+  PYTEST_VERSION: '9.0.3'
+
 jobs:
   final-handoff-syntax:
     runs-on: windows-latest
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Install pinned contract-test runner
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check "pytest==$env:PYTEST_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned pytest installation failed.' }
+          python -m pytest --version
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned pytest is unavailable.' }
 
       - name: Parse Phase 251 PowerShell wrapper
         shell: powershell
