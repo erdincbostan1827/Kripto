@@ -3,14 +3,14 @@
   "scanner": "bandit",
   "scanner_version": "1.9.4",
   "classification": "REVIEWED_LOW_SEVERITY_BASELINE",
-  "finding_count": 119,
+  "finding_count": 127,
   "medium_or_high_count": 0,
-  "finding_set_sha256": "6fb9b157ea97a0597f77a98f4ad23b2766a36a6228c60c1baa518b76227b42df",
+  "finding_set_sha256": "2843568febdf0e819f9549d29e9498df76275fd5bed9bfb3daf2c1f3e492b7de",
   "evidence": {
-    "workflow_run_id": 33738701544,
-    "artifact_id": 9886806812,
-    "artifact_sha256": "0f07e0309932ad26514f8db589bebeec4de6ef8286475aded3d9a55efc4cfd70",
-    "source_commit": "a70dbe77fd5c2968417e62c5625362b78d2dc6f3"
+    "workflow_run_id": 33897858328,
+    "artifact_id": 9946487555,
+    "artifact_sha256": "a8a051b110a7249d566cc49501ef68b5260db8b49dc51740108cb74843f74e24",
+    "source_commit": "dd877149bd114a354f775d81055e83018bd2e114"
   },
   "policy": {
     "scanner_execution_errors_fail": true,
