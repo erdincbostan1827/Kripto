@@ -243,6 +243,8 @@ jobs:
           $selectedProbePrice = ''
           $symbolSelectionMode = ''
           $partialPriceMode = ''
+          $scenarioExtracted = $false
+          $scenarioEvidencePresent = $false
 
           if ((Test-Path -LiteralPath $runtimePath -PathType Leaf) -and (Test-Path -LiteralPath $testnetPath -PathType Leaf)) {
             $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
@@ -256,23 +258,31 @@ jobs:
             if ($null -ne $testnetEvidence -and -not [string]::IsNullOrWhiteSpace([string]$testnetEvidence.artifact)) {
               $scenarioPath = Join-Path $PWD ([string]$testnetEvidence.artifact)
               if (Test-Path -LiteralPath $scenarioPath -PathType Leaf) {
-                $scenario = Get-Content -LiteralPath $scenarioPath -Raw | ConvertFrom-Json
-                $endpointVerified = ([string]$scenario.endpoint -eq 'https://testnet.binance.vision')
-                $scenarioAllPass = ($scenario.all_pass -eq $true)
-                $marketOrderPass = ($scenario.checks.market_order.pass -eq $true)
-                $limitOrderPass = ($scenario.checks.limit_order.pass -eq $true)
-                $cancelPass = ($scenario.checks.cancel.pass -eq $true)
-                $partialFillPass = ($scenario.checks.partial_fill.pass -eq $true)
-                $selectedSymbol = [string]$scenario.symbol
-                $symbolSelectionMode = [string]$scenario.symbol_selection_mode
-                $partialPriceMode = [string]$scenario.partial_price_mode
-                if ($null -ne $scenario.checks.partial_fill.PSObject.Properties['probe_price']) {
-                  $selectedProbePrice = [string]$scenario.checks.partial_fill.probe_price
+                $scenarioEvidencePresent = $true
+                $scenarioCleanPath = Join-Path $outDir 'BINANCE_TESTNET_SCENARIO.json'
+                python scripts/extract_phase245_scenario.py $scenarioPath $scenarioCleanPath
+                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $scenarioCleanPath -PathType Leaf)) {
+                  $scenario = Get-Content -LiteralPath $scenarioCleanPath -Raw | ConvertFrom-Json
+                  $scenarioExtracted = $true
+                  $endpointVerified = ([string]$scenario.endpoint -eq 'https://testnet.binance.vision')
+                  $scenarioAllPass = ($scenario.all_pass -eq $true)
+                  $marketOrderPass = ($scenario.checks.market_order.pass -eq $true)
+                  $limitOrderPass = ($scenario.checks.limit_order.pass -eq $true)
+                  $cancelPass = ($scenario.checks.cancel.pass -eq $true)
+                  $partialFillPass = ($scenario.checks.partial_fill.pass -eq $true)
+                  $selectedSymbol = [string]$scenario.symbol
+                  $symbolSelectionMode = [string]$scenario.symbol_selection_mode
+                  $partialPriceMode = [string]$scenario.partial_price_mode
+                  if ($null -ne $scenario.checks.partial_fill.PSObject.Properties['probe_price']) {
+                    $selectedProbePrice = [string]$scenario.checks.partial_fill.probe_price
+                  }
                 }
               }
             }
 
-            if ($null -ne $testnet.PSObject.Properties['blocker']) {
+            if ($scenarioEvidencePresent -and -not $scenarioExtracted) {
+              $blocker = 'SCENARIO_EVIDENCE_UNPARSEABLE'
+            } elseif ($null -ne $testnet.PSObject.Properties['blocker']) {
               $blocker = [string]$testnet.blocker
             } elseif ($testnet.selected_all_pass -eq $true) {
               $blocker = ''
