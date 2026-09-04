@@ -128,6 +128,9 @@ def test_binance_acceptance_script_is_hard_pinned_to_spot_testnet() -> None:
     assert 'raise RuntimeError("refusing to execute: adapter is not pinned to Binance Spot TESTNET")' in text
     assert 'if os.getenv("BINANCE_TESTNET_EXECUTE") != "YES":' in text
     assert 'max_notional = Decimal(os.getenv("BINANCE_TESTNET_MAX_NOTIONAL", "15"))' in text
-    assert 'partial_price = Decimal(partial_raw) if partial_raw else None' in text
+    assert 'auto_select_symbol = symbol_raw == AUTO_VALUE' in text
+    assert 'partial_raw is not None and partial_raw.strip().upper() == AUTO_VALUE' in text
+    assert 'if auto_partial_price or not partial_raw' in text
+    assert 'else Decimal(partial_raw)' in text
     assert 'adapter = BinanceSpotAdapter(api_key=key, api_secret=secret, testnet=True)' in text
     assert 'result["all_pass"] = bool(market_ok and limit_ok and cancel_ok and partial_ok)' in text

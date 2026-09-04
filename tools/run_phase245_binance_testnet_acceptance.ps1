@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$CandidateRef,
-    [string]$Symbol = "BTCUSDT",
-    [Parameter(Mandatory = $true)][string]$PartialPrice,
+    [string]$Symbol = "AUTO",
+    [string]$PartialPrice = "AUTO",
     [decimal]$MaxNotional = 15,
     [string]$Repository = "erdincbostan1827/Kripto",
     [string]$OutputDirectory = ".phase245-binance-testnet",
@@ -38,7 +38,7 @@ function Get-RunCreatedAt {
 function Write-PhaseResult {
     param([Parameter(Mandatory = $true)][bool]$Passed, [string]$RunId, [string]$Detail, [string]$Blocker)
     $payload = [ordered]@{
-        schema_version = "1.0"
+        schema_version = "1.1"
         classification = "PHASE245_BINANCE_TESTNET_ACCEPTANCE_ORCHESTRATION"
         generated_at = [DateTimeOffset]::UtcNow.ToString("o")
         passed = $Passed
@@ -46,14 +46,14 @@ function Write-PhaseResult {
         candidate_sha = $CandidateRef
         workflow = "Phase 245 Binance TESTNET Acceptance"
         run_id = $RunId
-        symbol = $Symbol
+        requested_symbol = $Symbol
         max_notional = $MaxNotional.ToString([Globalization.CultureInfo]::InvariantCulture)
-        partial_price = $PartialPrice
+        requested_partial_price = $PartialPrice
         detail = $Detail
         blocker = $Blocker
         production_ready = $false
         live_enabled = $false
-        truth_policy = "Phase 245 PASS closes only the exact-SHA credentialed Binance Spot TESTNET scenario on the intended Windows target identity. It does not authorize real-money LIVE trading or close campaign/signing gates."
+        truth_policy = "Phase 245 PASS closes only the exact-SHA credentialed Binance Spot TESTNET scenario on the intended Windows target identity. AUTO selection is TESTNET-only and fail-closed. It does not authorize real-money LIVE trading or close campaign/signing gates."
     }
     $resolvedOutput = [System.IO.Path]::GetFullPath($OutputDirectory)
     New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
@@ -75,17 +75,26 @@ try {
     if ($CandidateRef -notmatch '^[0-9a-fA-F]{40}$') { throw "CandidateRef must resolve to an exact 40-character commit SHA. Got: '$CandidateRef'" }
     $CandidateRef = $CandidateRef.ToLowerInvariant()
     $Symbol = $Symbol.Trim().ToUpperInvariant()
-    if ($Symbol -notmatch '^[A-Z0-9]{5,20}$') { throw "Symbol must match ^[A-Z0-9]{5,20}$." }
+    $autoSymbol = ($Symbol -eq "AUTO")
+    if (-not $autoSymbol -and $Symbol -notmatch '^[A-Z0-9]{5,20}$') { throw "Symbol must be AUTO or match ^[A-Z0-9]{5,20}$." }
     if ($MaxNotional -le 0 -or $MaxNotional -gt 15) { throw "MaxNotional must be >0 and <=15." }
+
     $culture = [Globalization.CultureInfo]::InvariantCulture
     $style = [Globalization.NumberStyles]::Number
-    [decimal]$partialDecimal = 0
-    if (-not [decimal]::TryParse($PartialPrice, $style, $culture, [ref]$partialDecimal) -or $partialDecimal -le 0) {
-        throw "PartialPrice must be a positive decimal number using '.' as decimal separator."
+    $PartialPrice = $PartialPrice.Trim().ToUpperInvariant()
+    $autoPartial = ($PartialPrice -eq "AUTO")
+    $partialPriceText = "AUTO"
+    if (-not $autoPartial) {
+        [decimal]$partialDecimal = 0
+        if (-not [decimal]::TryParse($PartialPrice, $style, $culture, [ref]$partialDecimal) -or $partialDecimal -le 0) {
+            throw "PartialPrice must be AUTO or a positive decimal number using '.' as decimal separator."
+        }
+        $partialPriceText = $partialDecimal.ToString($culture)
+        $PartialPrice = $partialPriceText
     }
+    if ($autoSymbol -and -not $autoPartial) { throw "Symbol=AUTO requires PartialPrice=AUTO." }
+
     $maxNotionalText = $MaxNotional.ToString($culture)
-    $partialPriceText = $partialDecimal.ToString($culture)
-    $PartialPrice = $partialPriceText
     $expectedRunTitle = "Phase 245 Binance TESTNET Acceptance $CandidateRef"
 
     $dispatchStarted = [DateTimeOffset]::UtcNow
@@ -157,9 +166,9 @@ try {
     if ($identity.candidate_sha -ne $CandidateRef) { throw "Phase 245 target identity is bound to a different git SHA: $($identity.candidate_sha)" }
     if ($identity.runner_os -ne "Windows") { throw "Phase 245 target identity did not run on Windows: $($identity.runner_os)" }
     if ($identity.exchange_endpoint -ne "https://testnet.binance.vision") { throw "Phase 245 target identity is not bound to Binance Spot TESTNET." }
-    if ([string]$identity.symbol -ne $Symbol) { throw "Phase 245 target identity symbol mismatch: $($identity.symbol)" }
+    if ([string]$identity.requested_symbol -ne $Symbol) { throw "Phase 245 requested symbol mismatch: $($identity.requested_symbol)" }
     if ([decimal]::Parse([string]$identity.max_notional, $culture) -ne $MaxNotional) { throw "Phase 245 target identity max_notional mismatch." }
-    if ([decimal]::Parse([string]$identity.partial_price, $culture) -ne $partialDecimal) { throw "Phase 245 target identity partial_price mismatch." }
+    if ([string]$identity.requested_partial_price -ne $partialPriceText) { throw "Phase 245 requested partial_price mismatch: $($identity.requested_partial_price)" }
 
     foreach ($manifest in @($runtime, $testnet)) {
         if ($manifest.classification -ne "EXTERNAL_ACCEPTANCE_EVIDENCE_BUNDLE") { throw "Unexpected external acceptance classification: $($manifest.classification)" }
@@ -170,7 +179,22 @@ try {
     if ($testnet.profile -ne "testnet") { throw "Unexpected TESTNET profile: $($testnet.profile)" }
     if ($testnet.credentials.binance_testnet -ne "PRESENT_REDACTED") { throw "Phase 245 TESTNET credentials were not verified as present/redacted." }
     if ($workflowResult.candidate_sha -ne $CandidateRef) { throw "Phase 245 workflow result is bound to a different git SHA: $($workflowResult.candidate_sha)" }
+    if ([string]$workflowResult.requested_symbol -ne $Symbol) { throw "Phase 245 workflow requested symbol mismatch." }
+    if ([string]$workflowResult.requested_partial_price -ne $partialPriceText) { throw "Phase 245 workflow requested partial_price mismatch." }
     if ($scenario.endpoint -ne "https://testnet.binance.vision") { throw "Scenario endpoint is not Binance Spot TESTNET: $($scenario.endpoint)" }
+    if ([string]$scenario.requested_symbol -ne $Symbol) { throw "Scenario requested symbol mismatch: $($scenario.requested_symbol)" }
+
+    if ($autoSymbol) {
+        if ([string]$scenario.symbol_selection_mode -ne "AUTO") { throw "Scenario did not use AUTO symbol selection." }
+        if ([string]::IsNullOrWhiteSpace([string]$scenario.symbol) -or [string]$scenario.symbol -eq "AUTO") { throw "AUTO selection did not resolve a concrete TESTNET symbol." }
+    } elseif ([string]$scenario.symbol -ne $Symbol) {
+        throw "Scenario symbol mismatch: $($scenario.symbol)"
+    }
+    if ($autoPartial) {
+        if ([string]$scenario.partial_price_mode -ne "AUTO") { throw "Scenario did not use AUTO partial-price selection." }
+    } elseif ([string]$scenario.partial_price_mode -ne "EXPLICIT") {
+        throw "Scenario did not preserve explicit partial-price mode."
+    }
 
     if ($null -ne $workflowResult.PSObject.Properties["blocker"]) { $blocker = [string]$workflowResult.blocker }
     if ([string]::IsNullOrWhiteSpace($blocker) -and $null -ne $testnet.PSObject.Properties["blocker"]) { $blocker = [string]$testnet.blocker }
@@ -224,6 +248,8 @@ try {
     Write-Host "Workflow run id: $runId"
     Write-Host "Runtime group: $runtimeStatus"
     Write-Host "TESTNET group: $testnetStatus"
+    Write-Host "Selected symbol: $($scenario.symbol)"
+    Write-Host "Selected probe price: $($scenario.checks.partial_fill.probe_price)"
     Write-Host "Endpoint: https://testnet.binance.vision"
     Write-Host "No production-ready/LIVE claim is made by this phase."
 }
