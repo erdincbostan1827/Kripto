@@ -1,7 +1,9 @@
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
+from app.exchange.models import SymbolFilters
 from scripts.external.binance_testnet_acceptance import (
     ACQUISITION_CAP_UTILIZATION,
     PARTIAL_CAP_UTILIZATION,
@@ -9,7 +11,6 @@ from scripts.external.binance_testnet_acceptance import (
     _effective_notional_cap,
     _executable_bid_quantity,
 )
-from app.exchange.models import SymbolFilters
 
 
 def _filters(*, max_notional: str | None = None, min_notional: str = "5") -> SymbolFilters:
@@ -83,13 +84,13 @@ class _BookAdapter:
 def test_executable_bid_quantity_counts_only_marketable_levels() -> None:
     adapter = _BookAdapter()
 
-    assert _executable_bid_quantity(adapter, "TESTUSDT", Decimal("100")) == Decimal("0.030")
-    assert _executable_bid_quantity(adapter, "TESTUSDT", Decimal("99")) == Decimal("0.050")
+    at_best = _executable_bid_quantity(adapter, "TESTUSDT", Decimal("100"))
+    through_second = _executable_bid_quantity(adapter, "TESTUSDT", Decimal("99"))
+    assert at_best == Decimal("0.030")
+    assert through_second == Decimal("0.050")
 
 
 def test_phase254_source_preflights_partial_depth_before_any_order_submission() -> None:
-    from pathlib import Path
-
     source = (
         Path(__file__).resolve().parents[1]
         / "scripts"
@@ -99,7 +100,14 @@ def test_phase254_source_preflights_partial_depth_before_any_order_submission() 
 
     preflight = source.index("executable_bid_quantity = _executable_bid_quantity")
     first_submit = source.index("market = adapter.submit_order")
+    preflight_guard = (
+        "executable_bid_quantity <= 0 or executable_bid_quantity >= probe_quantity"
+    )
+    all_pass_gate = (
+        'result["all_pass"] = bool(market_ok and limit_ok and cancel_ok and partial_ok)'
+    )
+
     assert preflight < first_submit
-    assert "executable_bid_quantity <= 0 or executable_bid_quantity >= probe_quantity" in source
+    assert preflight_guard in source
     assert 'TESTNET_URL = "https://testnet.binance.vision"' in source
-    assert 'result["all_pass"] = bool(market_ok and limit_ok and cancel_ok and partial_ok)' in source
+    assert all_pass_gate in source
