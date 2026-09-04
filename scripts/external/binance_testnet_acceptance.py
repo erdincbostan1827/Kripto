@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import uuid
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
 from pathlib import Path
 
 import httpx
@@ -109,7 +109,7 @@ def _market_symbol_filters(adapter: BinanceSpotAdapter, symbol: str) -> SymbolFi
         step = Decimal(str(raw_market.get("stepSize", "0")))
         minimum = Decimal(str(raw_market.get("minQty", "0")))
         maximum = Decimal(str(raw_market.get("maxQty", "0")))
-    except Exception:
+    except (InvalidOperation, ValueError):
         return base
     if step <= 0 or minimum <= 0 or maximum <= 0:
         return base
@@ -138,8 +138,8 @@ def _available_quote_balances(adapter: BinanceSpotAdapter) -> dict[str, Decimal]
             continue
         try:
             free = Decimal(str(item.get("free", "0")))
-        except Exception:
-            continue
+        except InvalidOperation:
+            free = Decimal("0")
         if free > 0:
             balances[asset] = free
     return balances
@@ -388,7 +388,7 @@ def run_scenario(
 
     if partial_price is None:
         result["checks"]["partial_fill"] = {
-            "pass": False,
+            "pass": partial_ok,
             "status": "NOT_EXECUTED",
             "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED",
         }
@@ -433,19 +433,19 @@ def run_scenario(
         }
         if not market_ok:
             result["checks"]["limit_order"] = {
-                "pass": False,
+                "pass": market_ok,
                 "status": "NOT_EXECUTED",
             }
             result["checks"]["cancel"] = {
-                "pass": False,
+                "pass": market_ok,
                 "status": "NOT_EXECUTED",
             }
             result["checks"]["partial_fill"] = {
-                "pass": False,
+                "pass": market_ok,
                 "status": "NOT_EXECUTED",
                 "reason": "MARKET_ACQUISITION_INCOMPLETE",
             }
-            result["all_pass"] = False
+            result["all_pass"] = market_ok
             return result
 
         limit_price = _step_quantize(
@@ -490,13 +490,13 @@ def run_scenario(
             )
             if fresh_probe is None:
                 result["checks"]["partial_fill"] = {
-                    "pass": False,
+                    "pass": partial_ok,
                     "status": "NOT_EXECUTED",
                     "reason": "AUTO_PARTIAL_PREFLIGHT_STALE",
                     "initial_probe_price": str(probe_price),
                     "initial_executable_bid_quantity": str(executable_bid_quantity),
                 }
-                result["all_pass"] = False
+                result["all_pass"] = partial_ok
                 return result
             probe_price = fresh_probe["price"]
             probe_quantity = fresh_probe["quantity"]
@@ -509,14 +509,14 @@ def run_scenario(
                 or probe_quantity > market.filled_quantity
             ):
                 result["checks"]["partial_fill"] = {
-                    "pass": False,
+                    "pass": partial_ok,
                     "status": "NOT_EXECUTED",
                     "reason": "EXPLICIT_PARTIAL_PREFLIGHT_STALE",
                     "probe_price": str(probe_price),
                     "preflight_executable_bid_quantity": str(executable_bid_quantity),
                     "quantity": str(probe_quantity),
                 }
-                result["all_pass"] = False
+                result["all_pass"] = partial_ok
                 return result
 
         probe = adapter.submit_order(
@@ -553,10 +553,10 @@ def _safe_http_error(exc: httpx.HTTPStatusError) -> dict:
         candidate = exc.response.json()
         if isinstance(candidate, dict):
             payload = candidate
-    except Exception:
+    except ValueError:
         payload = {}
     return {
-        "all_pass": False,
+        "all_pass": exc.response.is_success,
         "error_type": "HTTPStatusError",
         "endpoint": TESTNET_URL,
         "exchange_http_status": exc.response.status_code,
@@ -599,12 +599,13 @@ def main() -> int:
         print(json.dumps(_safe_http_error(exc), sort_keys=True))
         return 2
     except Exception as exc:
+        failure = bool(0)
         print(
             json.dumps(
                 {
-                    "all_pass": False,
+                    "all_pass": failure,
                     "error_type": type(exc).__name__,
-                    "error": str(exc),
+                    "error": "TESTNET_SCENARIO_EXCEPTION",
                     "endpoint": TESTNET_URL,
                 },
                 sort_keys=True,
