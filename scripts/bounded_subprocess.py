@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 PROCESS_TREE_GRACE_SECONDS = 2.0
+TEXT_ENCODING = "utf-8"
+TEXT_ERRORS = "replace"
 
 
 class _ProcessSignalGuard:
@@ -101,7 +103,6 @@ def terminate_process_tree(proc: subprocess.Popen[str], *, grace_seconds: float 
         pass
 
 
-
 def start_process_group(
     command: Sequence[str],
     *,
@@ -120,6 +121,9 @@ def start_process_group(
         "text": text,
         "shell": False,
     }
+    if text:
+        popen_kwargs["encoding"] = TEXT_ENCODING
+        popen_kwargs["errors"] = TEXT_ERRORS
     if os.name == "posix":
         popen_kwargs["start_new_session"] = True
     elif os.name == "nt":
@@ -130,6 +134,7 @@ def start_process_group(
 def guard_process_signals(proc: subprocess.Popen):
     """Public signal-guard adapter for long-lived process-group lifecycles."""
     return _ProcessSignalGuard(proc)
+
 
 def run_captured_bytes(
     command: Sequence[str],
@@ -199,6 +204,8 @@ def run_captured_split(
         "cwd": cwd,
         "env": env,
         "text": True,
+        "encoding": TEXT_ENCODING,
+        "errors": TEXT_ERRORS,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
     }
@@ -253,6 +260,8 @@ def run_captured(
         "cwd": cwd,
         "env": env,
         "text": True,
+        "encoding": TEXT_ENCODING,
+        "errors": TEXT_ERRORS,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.STDOUT,
     }
