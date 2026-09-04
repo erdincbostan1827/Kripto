@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import time
 import uuid
@@ -52,19 +51,37 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _exact_sha(value: str, *, field: str) -> str:
+    normalized = value.strip().lower()
+    if len(normalized) != 40 or any(ch not in "0123456789abcdef" for ch in normalized):
+        raise RuntimeError(f"{field} must be an exact 40-character lowercase git SHA")
+    return normalized
+
+
 def _git_sha() -> str:
-    proc = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    value = (proc.stdout or "").strip().lower()
-    if proc.returncode != 0 or len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
-        raise RuntimeError("Phase266 could not resolve exact git HEAD")
-    return value
+    git_dir = ROOT / ".git"
+    if not git_dir.is_dir():
+        raise RuntimeError("Phase266 requires a regular Git checkout")
+    head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    if not head.startswith("ref: "):
+        return _exact_sha(head, field="git HEAD")
+    ref = head[5:].strip()
+    parts = ref.split("/")
+    if not ref.startswith("refs/") or ".." in parts or "\\" in ref:
+        raise RuntimeError("Phase266 git HEAD ref is unsafe")
+    loose = git_dir.joinpath(*parts)
+    if loose.is_file():
+        return _exact_sha(loose.read_text(encoding="utf-8").strip(), field="git HEAD")
+    packed = git_dir / "packed-refs"
+    if packed.is_file():
+        for line in packed.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("#", "^")):
+                continue
+            fields = stripped.split(" ", 1)
+            if len(fields) == 2 and fields[1].strip() == ref:
+                return _exact_sha(fields[0].strip(), field="git HEAD")
+    raise RuntimeError("Phase266 could not resolve exact git HEAD")
 
 
 def _required_env(name: str, *, min_bytes: int = 1) -> str:
