@@ -19,7 +19,11 @@ def test_testnet_acceptance_runs_inside_locked_app_container_without_cli_secrets
     assert key == "binance_testnet"
     assert requires_real is True
     assert command[:4] == ("docker", "compose", "run", "--rm")
-    assert command[-3:] == ("app", "python", "scripts/external/binance_testnet_acceptance.py")
+    assert command[-3:] == (
+        "app",
+        "python",
+        "scripts/external/binance_testnet_acceptance_hardened.py",
+    )
 
     expected_env_names = (
         "BINANCE_TESTNET_API_KEY",
@@ -45,7 +49,7 @@ def test_testnet_acceptance_runs_inside_locked_app_container_without_cli_secrets
 def test_missing_python_dependency_is_not_misclassified_as_dns() -> None:
     traceback = (
         "Traceback (most recent call last):\n"
-        "  File 'scripts/external/binance_testnet_acceptance.py', line 16, in <module>\n"
+        "  File 'scripts/external/binance_testnet_acceptance_hardened.py', line 16, in <module>\n"
         "ModuleNotFoundError: No module named 'httpx'\n"
     )
 
