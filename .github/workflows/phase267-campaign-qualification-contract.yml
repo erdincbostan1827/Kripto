@@ -1,0 +1,78 @@
+name: Phase267 Campaign Qualification Contract
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
+      - '.github/workflows/phase267-protected-campaign-qualification.yml'
+      - '.github/workflows/phase267-campaign-qualification-contract.yml'
+      - 'backend/app/release/campaign_runtime_adapter.py'
+      - 'scripts/external/phase267_campaign_qualification.py'
+      - 'tests/test_phase266_campaign_runtime.py'
+  push:
+    paths:
+      - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
+      - '.github/workflows/phase267-protected-campaign-qualification.yml'
+      - '.github/workflows/phase267-campaign-qualification-contract.yml'
+      - 'backend/app/release/campaign_runtime_adapter.py'
+      - 'scripts/external/phase267_campaign_qualification.py'
+      - 'tests/test_phase266_campaign_runtime.py'
+
+permissions:
+  contents: read
+
+jobs:
+  qualification-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.12.10'
+          check-latest: false
+      - name: Install locked test runtime
+        run: |
+          python -m pip install 'uv==0.12.9'
+          uv sync --locked --extra test
+      - name: Compile Phase267 qualification surfaces
+        run: |
+          .venv/bin/python -m py_compile \
+            backend/app/release/campaign_runtime_adapter.py \
+            scripts/external/phase267_campaign_qualification.py \
+            tests/test_phase266_campaign_runtime.py
+      - name: Run protected campaign runtime tests
+        run: .venv/bin/python -m pytest -q tests/test_phase266_campaign_runtime.py
+      - name: Enforce no exchange order surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          for forbidden in '.submit_order(' '.cancel_order(' 'order.place' 'order.cancel'; do
+            if grep -F "$forbidden" scripts/external/phase267_campaign_qualification.py; then
+              echo "Forbidden exchange order surface in Phase267: $forbidden" >&2
+              exit 1
+            fi
+          done
+      - name: Enforce exact-main Phase262 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/phase262-final-main-phase245-dispatch.yml'
+          grep -F 'branch=main' "$workflow"
+          grep -F '.head_branch == "main"' "$workflow"
+          grep -F '.event == "push"' "$workflow"
+          grep -F '.head_sha == $sha' "$workflow"
+      - name: Enforce non-vacuous Phase267 qualification contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/phase267-protected-campaign-qualification.yml'
+          runner='scripts/external/phase267_campaign_qualification.py'
+          grep -F 'runs-on: [self-hosted, production-acceptance]' "$workflow"
+          grep -F 'ref: main' "$workflow"
+          grep -F 'refuses to create replacement state' "$workflow"
+          grep -F 'refuses to create a new telemetry key' "$workflow"
+          grep -F -- '--minimum-pairs 100' "$workflow"
+          grep -F 'requires at least 100 paired real observations' "$runner"
+          grep -F 'live_enabled": False' "$runner"
+          grep -F 'production_ready": False' "$runner"
