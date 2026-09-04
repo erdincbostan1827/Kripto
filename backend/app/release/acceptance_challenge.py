@@ -6,6 +6,8 @@ from pathlib import Path
 from secrets import token_hex
 import json
 import os
+import platform
+import shutil
 from scripts.bounded_subprocess import run_captured
 from typing import Any
 
@@ -14,6 +16,28 @@ from app.release.path_integrity import PathIntegrityError, resolve_without_symli
 
 CURRENT_CHALLENGE_SCHEMA = "2.3"
 GIT_STATUS_UNAVAILABLE_MARKER = "__GIT_STATUS_UNAVAILABLE__"
+
+
+def _trust_shell_argv(command: str, *, platform_name: str | None = None) -> list[str]:
+    """Resolve the external trust verifier shell without weakening fail-closed behavior."""
+    platform_name = (platform_name or platform.system()).lower()
+    if platform_name == "windows":
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if not shell:
+            raise RuntimeError("POWERSHELL_NOT_FOUND")
+        return [
+            shell,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            command,
+        ]
+
+    bash = shutil.which("bash")
+    if not bash:
+        raise RuntimeError("BASH_NOT_FOUND")
+    return [bash, "-lc", command]
 
 
 def _git_sha(root: Path) -> str:
@@ -171,7 +195,7 @@ def verify_challenge(path: Path, *, root: Path, max_age_hours: int = 24, require
         env = dict(os.environ)
         env["ACCEPTANCE_CHALLENGE_PATH"] = str(path.resolve())
         try:
-            proc = run_captured(["bash", "-lc", trust_command], cwd=root, env=env, timeout=60)
+            proc = run_captured(_trust_shell_argv(trust_command), cwd=root, env=env, timeout=60)
             if proc.returncode == 0:
                 trust_status = "VERIFIED_BY_EXTERNAL_COMMAND"
             else:
