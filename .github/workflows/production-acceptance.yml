@@ -8,6 +8,14 @@ on:
         description: Immutable git tag or SHA to validate
         required: true
         type: string
+      campaign_bundle_path:
+        description: Absolute path on the production-acceptance runner to the exact-SHA campaign evidence ZIP
+        required: true
+        type: string
+      campaign_bundle_sha256:
+        description: Expected lowercase SHA-256 of the campaign evidence ZIP
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -339,6 +347,35 @@ jobs:
           New-Item -ItemType Directory -Force -Path 'reports' | Out-Null
           $actual | Set-Content -LiteralPath 'reports/CI_CONTAINER_REPODIGEST_VERIFIED.txt' -Encoding utf8
 
+      - name: Verify and stage exact campaign evidence handoff
+        shell: pwsh
+        env:
+          CAMPAIGN_BUNDLE_PATH: ${{ github.event.inputs.campaign_bundle_path }}
+          CAMPAIGN_BUNDLE_SHA256: ${{ github.event.inputs.campaign_bundle_sha256 }}
+          EXPECTED_ACCEPTANCE_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
+          ACCEPTANCE_ENVIRONMENT_ID: ${{ vars.ACCEPTANCE_ENVIRONMENT_ID }}
+          ACCEPTANCE_TOPOLOGY_HASH: ${{ vars.ACCEPTANCE_TOPOLOGY_HASH }}
+          ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: "1"
+          ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('CAMPAIGN_BUNDLE_PATH','CAMPAIGN_BUNDLE_SHA256','EXPECTED_ACCEPTANCE_SHA','ACCEPTANCE_ENVIRONMENT_ID','ACCEPTANCE_TOPOLOGY_HASH','ACCEPTANCE_CHALLENGE_VERIFY_COMMAND')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Required final campaign handoff input is missing: $name" }
+          }
+          if (-not [IO.Path]::IsPathFullyQualified($env:CAMPAIGN_BUNDLE_PATH)) { throw 'campaign_bundle_path must be absolute on the production-acceptance runner.' }
+          if ($env:CAMPAIGN_BUNDLE_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'campaign_bundle_sha256 must be an exact SHA-256 digest.' }
+          python scripts/external/final_campaign_bundle_handoff.py `
+            --bundle $env:CAMPAIGN_BUNDLE_PATH `
+            --expected-sha256 $env:CAMPAIGN_BUNDLE_SHA256 `
+            --expected-candidate $env:EXPECTED_ACCEPTANCE_SHA `
+            --expected-environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --expected-topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH
+          if ($LASTEXITCODE -ne 0) { throw 'Final campaign evidence handoff did not verify.' }
+          $handoff = Get-Content -LiteralPath 'reports/phase251/FINAL_CAMPAIGN_HANDOFF_VERIFICATION.json' -Raw | ConvertFrom-Json
+          if ($handoff.verified -ne $true -or $handoff.candidate_sha -ne $env:EXPECTED_ACCEPTANCE_SHA.ToLowerInvariant()) { throw 'Final campaign handoff receipt is not exact-SHA verified.' }
+          if ($handoff.challenge.trust_verified -ne $true) { throw 'Final campaign handoff challenge trust is not verified.' }
+
       - name: Fail-closed production real-target preflight
         env:
           EXPECTED_ACCEPTANCE_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
@@ -393,7 +430,7 @@ jobs:
           CI: 'true'
           CI_RUN_ID: ${{ github.run_id }}
           CI_COMMIT_SHA: ${{ needs.ci-build-evidence.outputs.source_sha }}
-        run: python scripts/production_acceptance_orchestrator.py --confirm-real-target
+        run: python scripts/production_acceptance_orchestrator.py --confirm-real-target --reuse-current-challenge
 
       - name: Final release gate must remain fail-closed unless every gate is satisfied
         shell: pwsh
@@ -420,6 +457,7 @@ jobs:
           retention-days: 30
           path: |
             reports/external_acceptance/**
+            reports/phase251/**
             reports/production_acceptance/**
             reports/PRODUCTION_ACCEPTANCE_ORCHESTRATION.json
             reports/CI_BUILD_ARTIFACT_IDENTITY.json
