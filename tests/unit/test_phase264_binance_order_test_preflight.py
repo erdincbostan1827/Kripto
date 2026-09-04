@@ -4,6 +4,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import httpx
+import pytest
 
 from scripts.external import binance_testnet_acceptance as base
 from scripts.external import binance_testnet_acceptance_hardened as hardened
@@ -90,4 +91,23 @@ def test_market_order_test_returns_false_on_binance_filter_rejection():
     adapter = FakeAdapter()
     assert hardened._market_order_test(adapter, "AAAUSDT", Decimal("2")) is False
     assert adapter.test_calls == ["AAAUSDT"]
+    assert adapter.submit_calls == 0
+
+
+def test_market_order_test_reraises_non_filter_http_error():
+    adapter = FakeAdapter()
+
+    def reject_auth(method, path, params=None, signed=False):
+        request = httpx.Request("POST", "https://testnet.binance.vision/api/v3/order/test")
+        response = httpx.Response(
+            401,
+            request=request,
+            json={"code": -2015, "msg": "Invalid API-key, IP, or permissions for action."},
+        )
+        raise httpx.HTTPStatusError("auth rejected", request=request, response=response)
+
+    adapter._request = reject_auth  # type: ignore[method-assign]
+
+    with pytest.raises(httpx.HTTPStatusError):
+        hardened._market_order_test(adapter, "AAAUSDT", Decimal("2"))
     assert adapter.submit_calls == 0
