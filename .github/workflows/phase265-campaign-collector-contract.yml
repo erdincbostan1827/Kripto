@@ -4,17 +4,21 @@ on:
   push:
     paths:
       - 'backend/app/release/campaign_collector.py'
+      - 'backend/app/release/campaign_runtime_adapter.py'
       - 'scripts/external/phase265_campaign_collector.py'
       - 'scripts/external/record_campaign_evidence.py'
       - 'tests/test_phase265_campaign_collector.py'
+      - 'tests/test_phase265_campaign_runtime_adapter.py'
       - 'tests/test_phase265_cli_truth_boundary.py'
       - '.github/workflows/phase265-campaign-collector-contract.yml'
   pull_request:
     paths:
       - 'backend/app/release/campaign_collector.py'
+      - 'backend/app/release/campaign_runtime_adapter.py'
       - 'scripts/external/phase265_campaign_collector.py'
       - 'scripts/external/record_campaign_evidence.py'
       - 'tests/test_phase265_campaign_collector.py'
+      - 'tests/test_phase265_campaign_runtime_adapter.py'
       - 'tests/test_phase265_cli_truth_boundary.py'
       - '.github/workflows/phase265-campaign-collector-contract.yml'
 
@@ -42,12 +46,15 @@ jobs:
         run: |
           .venv/bin/python -m py_compile \
             backend/app/release/campaign_collector.py \
+            backend/app/release/campaign_runtime_adapter.py \
             scripts/external/phase265_campaign_collector.py \
             scripts/external/record_campaign_evidence.py \
             tests/test_phase265_campaign_collector.py \
+            tests/test_phase265_campaign_runtime_adapter.py \
             tests/test_phase265_cli_truth_boundary.py
       - name: Run Phase265 fail-closed contract tests
         run: |
           .venv/bin/python -m pytest -q -W error \
             tests/test_phase265_campaign_collector.py \
+            tests/test_phase265_campaign_runtime_adapter.py \
             tests/test_phase265_cli_truth_boundary.py
