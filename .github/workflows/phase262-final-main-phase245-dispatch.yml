@@ -1,0 +1,101 @@
+name: Phase 262 Final Main Phase245 Dispatch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: phase262-final-main-phase245-dispatch
+  cancel-in-progress: false
+
+jobs:
+  wait-gates-and-dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_REF: ${{ github.sha }}
+    steps:
+      - name: Validate exact candidate identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Invalid exact candidate SHA: $CANDIDATE_REF" >&2
+            exit 2
+          fi
+          echo "candidate_ref=$CANDIDATE_REF"
+
+      - name: Wait for exact-SHA final-main gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "CI"
+            "Phase 223 Chromium Browser Acceptance"
+            "Phase 224 Hosted Pre-Acceptance Evidence"
+            "Phase 225 Production Build Evidence"
+            "Backend Full-Tree Type Debt Ratchet"
+          )
+
+          for attempt in $(seq 1 150); do
+            json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=push&per_page=100")"
+            all_success=1
+
+            for workflow_name in "${required[@]}"; do
+              row="$(jq -c --arg name "$workflow_name" '[.workflow_runs[] | select(.name == $name)] | sort_by(.run_number) | last // empty' <<<"$json")"
+              if [[ -z "$row" ]]; then
+                echo "Gate not visible yet: $workflow_name"
+                all_success=0
+                continue
+              fi
+
+              status="$(jq -r '.status' <<<"$row")"
+              conclusion="$(jq -r '.conclusion // ""' <<<"$row")"
+              run_id="$(jq -r '.id' <<<"$row")"
+              echo "gate=$workflow_name run_id=$run_id status=$status conclusion=$conclusion"
+
+              if [[ "$status" == "completed" && "$conclusion" != "success" ]]; then
+                echo "Final-main gate failed: $workflow_name ($conclusion)" >&2
+                exit 3
+              fi
+              if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
+                all_success=0
+              fi
+            done
+
+            if [[ "$all_success" -eq 1 ]]; then
+              echo "PHASE262_FINAL_MAIN_GATES=PASS"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Timed out waiting for final-main gates." >&2
+          exit 4
+
+      - name: Dispatch exact-SHA Phase245 TESTNET acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run phase245-binance-testnet-acceptance.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f candidate_ref="$CANDIDATE_REF" \
+            -f symbol=AUTO \
+            -f max_notional=15 \
+            -f partial_price=AUTO
+          echo "PHASE262_PHASE245_DISPATCH=ACCEPTED"
+          echo "candidate_ref=$CANDIDATE_REF"
+
+      - name: Enforce truth boundary
+        shell: bash
+        run: |
+          echo "This workflow only dispatches Phase245 after exact-SHA hosted gates PASS."
+          echo "Dispatch success is not Phase245 acceptance evidence and never authorizes LIVE trading."
