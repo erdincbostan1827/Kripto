@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 import os
-import random
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import fmean, pstdev
@@ -286,10 +285,16 @@ def _elapsed_days(rows: list[dict[str, Any]]) -> int:
 def _bootstrap_lower_mean(values: list[float]) -> float:
     if len(values) < 2:
         return 0.0
-    digest = hashlib.sha256(_canonical_bytes({"values": values})).digest()
-    rng = random.Random(int.from_bytes(digest[:8], "big"))
+    seed = hashlib.sha256(_canonical_bytes({"values": values})).digest()
     n = len(values)
-    means = [fmean(values[rng.randrange(n)] for _ in range(n)) for _ in range(BOOTSTRAP_REPLICATES)]
+    means: list[float] = []
+    for replicate in range(BOOTSTRAP_REPLICATES):
+        sample: list[float] = []
+        for position in range(n):
+            counter = replicate.to_bytes(8, "big") + position.to_bytes(8, "big")
+            digest = hashlib.sha256(seed + counter).digest()
+            sample.append(values[int.from_bytes(digest[:8], "big") % n])
+        means.append(fmean(sample))
     means.sort()
     return float(means[max(0, int(0.025 * (len(means) - 1)))])
 
