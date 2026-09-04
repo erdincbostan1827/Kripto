@@ -1,0 +1,197 @@
+name: Phase 267 Protected Campaign Qualification
+
+on:
+  workflow_run:
+    workflows:
+      - Phase 266 Protected Campaign Sampling
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Optional exact current-main SHA; empty means current main
+        required: false
+        type: string
+      symbol:
+        description: Binance Spot symbol used for the real kill-switch probe
+        required: false
+        default: BTCUSDT
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: phase267-protected-campaign-qualification
+  cancel-in-progress: false
+
+jobs:
+  qualify-protected-campaign:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 20
+    env:
+      PYTHON_VERSION: '3.12.10'
+      UV_VERSION: '0.12.9'
+
+    steps:
+      - name: Resolve exact candidate
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_CANDIDATE: ${{ inputs.candidate_ref }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:EVENT_NAME -eq 'workflow_run') {
+            $candidate = ([string]$env:WORKFLOW_RUN_SHA).Trim().ToLowerInvariant()
+          } elseif (-not [string]::IsNullOrWhiteSpace([string]$env:INPUT_CANDIDATE)) {
+            $candidate = ([string]$env:INPUT_CANDIDATE).Trim().ToLowerInvariant()
+          } else {
+            $candidate = ''
+          }
+          if ($candidate -and $candidate -notmatch '^[0-9a-f]{40}$') {
+            throw "Phase267 candidate must be an exact 40-character SHA: $candidate"
+          }
+          "PHASE267_REQUESTED_CANDIDATE=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Checkout current main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          fetch-depth: 0
+          clean: true
+
+      - name: Enforce exact current-main candidate
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve exact current main SHA.' }
+          $candidate = ([string]$env:PHASE267_REQUESTED_CANDIDATE).Trim().ToLowerInvariant()
+          if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = $head }
+          if ($candidate -ne $head) {
+            throw "Phase267 refuses stale/non-current campaign state. main=$head candidate=$candidate"
+          }
+          "PHASE267_CANDIDATE=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Install and verify locked runtime
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python -m pip install "uv==$env:UV_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned uv installation failed.' }
+          uv sync --locked --extra test
+          if ($LASTEXITCODE -ne 0) { throw 'Locked environment installation failed.' }
+          .\.venv\Scripts\python.exe scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+      - name: Bind existing protected runner state and topology
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_OS -ne 'Windows') {
+            throw 'Phase267 requires the protected Windows production-acceptance runner.'
+          }
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)
+          $workspaceParent = Split-Path -Parent $workspace
+          $stateBase = Join-Path $workspaceParent '_phase266_protected_campaign_state'
+          if (-not (Test-Path -LiteralPath $stateBase -PathType Container)) {
+            throw 'Phase267 refuses to create replacement state; Phase266 protected campaign state is missing.'
+          }
+
+          $topologyFiles = @('docker-compose.yml','docker-compose.prod.yml','.env.example','pyproject.toml','uv.lock')
+          $lines = foreach ($path in $topologyFiles) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Topology source missing: $path" }
+            $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$path=$hash"
+          }
+          $canonical = ($lines -join "`n") + "`n"
+          $bytes = [Text.Encoding]::UTF8.GetBytes($canonical)
+          $sha = [Security.Cryptography.SHA256]::Create()
+          try { $topologyHash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
+          finally { $sha.Dispose() }
+          $environmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign"
+
+          "PHASE267_STATE_DIR=$stateBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_ENVIRONMENT_ID=$environmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ACCEPTANCE_TOPOLOGY_HASH=$topologyHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Recover DPAPI-protected telemetry attestation key
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $keyPath = Join-Path $env:PHASE267_STATE_DIR '_phase265_telemetry_key.dpapi'
+          if (-not (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
+            throw 'Phase267 refuses to create a new telemetry key; existing Phase266 DPAPI key is missing.'
+          }
+          $encrypted = (Get-Content -LiteralPath $keyPath -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($encrypted)) { throw 'DPAPI telemetry key file is empty.' }
+          $secure = $encrypted | ConvertTo-SecureString
+          $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+          try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+          finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+          if ([Text.Encoding]::UTF8.GetByteCount($plain) -lt 32) { throw 'Recovered telemetry key is too short.' }
+          Write-Output "::add-mask::$plain"
+          "PHASE265_TELEMETRY_HMAC_KEY=$plain" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run fail-closed live-shadow qualification
+        shell: pwsh
+        env:
+          INPUT_SYMBOL: ${{ inputs.symbol }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $symbol = ([string]$env:INPUT_SYMBOL).Trim().ToUpperInvariant()
+          if ([string]::IsNullOrWhiteSpace($symbol)) { $symbol = 'BTCUSDT' }
+          New-Item -ItemType Directory -Force -Path 'reports/phase267' | Out-Null
+          $result = & .\.venv\Scripts\python.exe scripts/external/phase267_campaign_qualification.py `
+            --candidate $env:PHASE267_CANDIDATE `
+            --state-dir $env:PHASE267_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            shadow-qualification `
+            --symbol $symbol `
+            --minimum-pairs 100 `
+            --timeout-seconds 10
+          if ($LASTEXITCODE -ne 0) { throw 'Phase267 live-shadow qualification failed closed.' }
+          $result | Set-Content -LiteralPath 'reports/phase267/QUALIFICATION.json' -Encoding utf8
+          $parsed = Get-Content -LiteralPath 'reports/phase267/QUALIFICATION.json' -Raw | ConvertFrom-Json
+          if ($parsed.candidate_sha -ne $env:PHASE267_CANDIDATE) { throw 'Phase267 qualification candidate mismatch.' }
+          if ($parsed.live_enabled -ne $false -or $parsed.production_ready -ne $false) {
+            throw 'Phase267 safety truth boundary was violated.'
+          }
+          "### Phase267 protected qualification" >> $env:GITHUB_STEP_SUMMARY
+          "- candidate: ``$($parsed.candidate_sha)``" >> $env:GITHUB_STEP_SUMMARY
+          "- kill-switch: ``$($parsed.kill_switch_status)``" >> $env:GITHUB_STEP_SUMMARY
+          "- shadow reconciliation: ``$($parsed.reconciliation_status)``" >> $env:GITHUB_STEP_SUMMARY
+          "- reconciled pairs: ``$($parsed.reconciled_pairs)`` / 100" >> $env:GITHUB_STEP_SUMMARY
+          "- LIVE trading: disabled" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload sanitized qualification status
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase267-protected-qualification-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: reports/phase267/QUALIFICATION.json
+
+      - name: Erase process-scoped telemetry secret
+        if: always()
+        shell: pwsh
+        run: Remove-Item Env:PHASE265_TELEMETRY_HMAC_KEY -ErrorAction SilentlyContinue
