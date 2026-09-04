@@ -5,6 +5,8 @@ on:
     workflows:
       - Phase 266 Protected Campaign Sampling
     types: [completed]
+  schedule:
+    - cron: '47 */6 * * *'
   workflow_dispatch:
     inputs:
       candidate_ref:
