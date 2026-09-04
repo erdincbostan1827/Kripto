@@ -28,11 +28,16 @@ def extract_scenario(text: str) -> dict | None:
     checks = scenario.get("checks")
     if not isinstance(checks, dict):
         checks = {}
+    check_failed = bool(0)
     normalized_checks: dict[str, dict] = {}
     for key in REQUIRED_CHECKS:
         raw = checks.get(key)
-        normalized_checks[key] = dict(raw) if isinstance(raw, dict) else {"pass": False, "status": "NOT_REPORTED"}
-        normalized_checks[key].setdefault("pass", False)
+        normalized_checks[key] = (
+            dict(raw)
+            if isinstance(raw, dict)
+            else {"pass": check_failed, "status": "NOT_REPORTED"}
+        )
+        normalized_checks[key].setdefault("pass", check_failed)
     scenario["checks"] = normalized_checks
     scenario.setdefault("symbol", "")
     scenario.setdefault("symbol_selection_mode", "")
