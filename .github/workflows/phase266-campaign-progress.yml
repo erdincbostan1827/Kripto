@@ -1,0 +1,280 @@
+name: Phase 266 Campaign Progress
+
+on:
+  push:
+    branches:
+      - ops/phase265-campaign-f1ee397
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: phase266-campaign-progress-f1ee397
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: '3.12.10'
+  CANDIDATE_REF: f1ee397705e11097d40a37c2ddd60cd9ae94f5ac
+
+jobs:
+  campaign-progress:
+    name: campaign-progress
+    runs-on: [self-hosted, production-acceptance]
+    environment: production-acceptance
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ACCEPTANCE_ENVIRONMENT_ID: ${{ vars.ACCEPTANCE_ENVIRONMENT_ID }}
+      ACCEPTANCE_TOPOLOGY_HASH: ${{ vars.ACCEPTANCE_TOPOLOGY_HASH }}
+      ACCEPTANCE_REQUIRE_CHALLENGE_TRUST: '1'
+      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
+      PHASE265_TELEMETRY_HMAC_KEY: ${{ secrets.PHASE265_TELEMETRY_HMAC_KEY }}
+
+    steps:
+      - name: Checkout immutable campaign candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.CANDIDATE_REF }}
+          fetch-depth: 0
+          clean: true
+
+      - name: Setup pinned Python from runner tool cache
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Validate exact candidate and production campaign binding
+        id: binding
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path 'reports/phase266' | Out-Null
+
+          if ($env:RUNNER_OS -ne 'Windows') { throw "production-acceptance runner must be Windows; observed $env:RUNNER_OS" }
+          python scripts/validate_acceptance_ref.py $env:CANDIDATE_REF
+          if ($LASTEXITCODE -ne 0) { throw 'Immutable candidate validation failed.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($head -ne $env:CANDIDATE_REF.ToLowerInvariant()) { throw "Checked out SHA mismatch: $head" }
+          python scripts/verify_source_locks.py
+          if ($LASTEXITCODE -ne 0) { throw 'Source-lock verification failed.' }
+
+          $missing = @()
+          if ([string]::IsNullOrWhiteSpace($env:ACCEPTANCE_ENVIRONMENT_ID)) { $missing += 'ACCEPTANCE_ENVIRONMENT_ID' }
+          if ([string]::IsNullOrWhiteSpace($env:ACCEPTANCE_TOPOLOGY_HASH)) { $missing += 'ACCEPTANCE_TOPOLOGY_HASH' }
+          if ($env:ACCEPTANCE_TOPOLOGY_HASH -and $env:ACCEPTANCE_TOPOLOGY_HASH -notmatch '^[0-9a-fA-F]{64}$') { $missing += 'ACCEPTANCE_TOPOLOGY_HASH_INVALID' }
+          if ([string]::IsNullOrWhiteSpace($env:PHASE265_TELEMETRY_HMAC_KEY)) { $missing += 'PHASE265_TELEMETRY_HMAC_KEY' }
+          if ([string]::IsNullOrWhiteSpace($env:ACCEPTANCE_CHALLENGE_VERIFY_COMMAND)) { $missing += 'ACCEPTANCE_CHALLENGE_VERIFY_COMMAND' }
+
+          $stateDir = Join-Path $env:USERPROFILE '.kripto\phase265-campaign-state'
+          New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+          "PHASE265_STATE_DIR=$stateDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "state_dir=$stateDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $binding = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE266_CAMPAIGN_PROGRESS_BINDING_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            runner_name = $env:RUNNER_NAME
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            acceptance_environment_id_present = -not [string]::IsNullOrWhiteSpace($env:ACCEPTANCE_ENVIRONMENT_ID)
+            topology_hash_present = -not [string]::IsNullOrWhiteSpace($env:ACCEPTANCE_TOPOLOGY_HASH)
+            telemetry_hmac_key_present = -not [string]::IsNullOrWhiteSpace($env:PHASE265_TELEMETRY_HMAC_KEY)
+            challenge_verify_command_present = -not [string]::IsNullOrWhiteSpace($env:ACCEPTANCE_CHALLENGE_VERIFY_COMMAND)
+            configuration_blockers = $missing
+            state_dir = $stateDir
+            live_enabled = $false
+            production_ready = $false
+          }
+          $binding | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase266/BINDING.json' -Encoding utf8
+          $binding | ConvertTo-Json -Depth 8 | Out-Host
+
+          if ($missing.Count -gt 0) {
+            "binding_ready=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          } else {
+            "binding_ready=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      - name: Initialize or inspect persistent exact-SHA collector state
+        if: steps.binding.outputs.binding_ready == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/phase265_campaign_collector.py `
+            --candidate $env:CANDIDATE_REF `
+            --state-dir $env:PHASE265_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            status | Tee-Object -FilePath 'reports/phase266/STATUS_INITIAL.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Phase265 persistent state validation failed.' }
+
+      - name: Capture real public Binance market audit without advancing acceptance
+        if: steps.binding.outputs.binding_ready == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/phase265_campaign_collector.py `
+            --candidate $env:CANDIDATE_REF `
+            --state-dir $env:PHASE265_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            collect-market-audit --symbol BTCUSDT --count 5 --interval-seconds 1 `
+            | Tee-Object -FilePath 'reports/phase266/PUBLIC_MARKET_AUDIT.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Read-only Binance public market audit failed.' }
+
+          python scripts/external/phase265_campaign_collector.py `
+            --candidate $env:CANDIDATE_REF `
+            --state-dir $env:PHASE265_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            kill-switch-audit --symbol BTCUSDT `
+            | Tee-Object -FilePath 'reports/phase266/KILL_SWITCH_AUDIT.txt'
+          if ($LASTEXITCODE -ne 0) { throw 'Collector kill-switch audit failed.' }
+
+      - name: Resolve real campaign readiness
+        id: readiness
+        if: steps.binding.outputs.binding_ready == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/external/phase265_campaign_collector.py `
+            --candidate $env:CANDIDATE_REF `
+            --state-dir $env:PHASE265_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            status | Tee-Object -FilePath 'reports/phase266/STATUS_AFTER_AUDIT.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Phase265 status failed.' }
+
+          $status = Get-Content -LiteralPath 'reports/phase266/STATUS_AFTER_AUDIT.json' -Raw | ConvertFrom-Json
+          $blockers = @($status.blockers)
+          $ready = ($blockers.Count -eq 0)
+          "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $summary = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE266_CAMPAIGN_PROGRESS_RESULT_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            acceptance_ready = $ready
+            blockers = $blockers
+            event_counts = $status.event_counts
+            metrics = $status.metrics
+            next_action = $(if ($ready) { 'SEAL_BUILD_AND_DISPATCH_PHASE246' } else { 'CONTINUE_REAL_ATTESTED_RUNTIME_COLLECTION' })
+            live_enabled = $false
+            production_ready = $false
+            truth_policy = 'Only HMAC-attested protected-runtime events can remove campaign blockers. Public audit rows never advance acceptance.'
+          }
+          $summary | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath 'reports/phase266/PHASE266_PROGRESS_RESULT.json' -Encoding utf8
+          $summary | ConvertTo-Json -Depth 20 | Out-Host
+
+      - name: Generate fresh release challenge and seal acceptance-ready collection
+        if: steps.readiness.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          python scripts/generate_acceptance_challenge.py
+          if ($LASTEXITCODE -ne 0) { throw 'Fresh release challenge generation failed.' }
+          python scripts/external/phase265_campaign_collector.py `
+            --candidate $env:CANDIDATE_REF `
+            --state-dir $env:PHASE265_STATE_DIR `
+            --environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            seal | Tee-Object -FilePath 'reports/phase266/SEAL_RESULT.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Acceptance-ready Phase265 collection could not be sealed.' }
+
+      - name: Build immutable Phase246 transfer bundle
+        id: bundle
+        if: steps.readiness.outputs.ready == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $candidateDir = Join-Path $env:PHASE265_STATE_DIR $env:CANDIDATE_REF.ToLowerInvariant()
+          New-Item -ItemType Directory -Force -Path $candidateDir | Out-Null
+          $bundlePath = Join-Path $candidateDir "phase246-campaign-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.zip"
+          $receiptPath = Join-Path $candidateDir "phase252-build-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.json"
+          python scripts/external/build_campaign_evidence_bundle.py `
+            --candidate $env:CANDIDATE_REF `
+            --acceptance-environment-id $env:ACCEPTANCE_ENVIRONMENT_ID `
+            --topology-hash $env:ACCEPTANCE_TOPOLOGY_HASH `
+            --output $bundlePath `
+            --receipt $receiptPath
+          if ($LASTEXITCODE -ne 0) { throw 'Campaign bundle build failed.' }
+          $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
+          if ($receipt.verified -ne $true) { throw 'Campaign bundle build receipt is not verified.' }
+          Copy-Item -LiteralPath $receiptPath -Destination 'reports/phase266/PHASE252_BUILD_RECEIPT.json' -Force
+          "bundle_path=$([string]$receipt.bundle_path)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "bundle_sha256=$([string]$receipt.bundle_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Dispatch exact-SHA Phase246 campaign acceptance
+        if: steps.readiness.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          BUNDLE_PATH: ${{ steps.bundle.outputs.bundle_path }}
+          BUNDLE_SHA256: ${{ steps.bundle.outputs.bundle_sha256 }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          gh workflow run phase246-campaign-acceptance.yml `
+            --repo $env:GITHUB_REPOSITORY `
+            --ref main `
+            -f candidate_ref=$env:CANDIDATE_REF `
+            -f bundle_path="$env:BUNDLE_PATH" `
+            -f bundle_sha256=$env:BUNDLE_SHA256
+          if ($LASTEXITCODE -ne 0) { throw 'Phase246 workflow dispatch failed.' }
+          $dispatch = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE266_PHASE246_DISPATCH_RECEIPT_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            bundle_sha256 = $env:BUNDLE_SHA256
+            dispatch_accepted = $true
+            live_enabled = $false
+            production_ready = $false
+          }
+          $dispatch | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase266/PHASE246_DISPATCH.json' -Encoding utf8
+
+      - name: Capture configuration-blocked result
+        if: steps.binding.outputs.binding_ready != 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $binding = Get-Content -LiteralPath 'reports/phase266/BINDING.json' -Raw | ConvertFrom-Json
+          $result = [ordered]@{
+            schema_version = '1.0'
+            classification = 'PHASE266_CAMPAIGN_PROGRESS_RESULT_NOT_ACCEPTANCE_EVIDENCE'
+            candidate_sha = $env:CANDIDATE_REF.ToLowerInvariant()
+            acceptance_ready = $false
+            blockers = @($binding.configuration_blockers)
+            next_action = 'CONFIGURE_REQUIRED_PRODUCTION_ACCEPTANCE_BINDING'
+            live_enabled = $false
+            production_ready = $false
+          }
+          $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath 'reports/phase266/PHASE266_PROGRESS_RESULT.json' -Encoding utf8
+          $result | ConvertTo-Json -Depth 8 | Out-Host
+
+      - name: Upload Phase266 progress evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase266-campaign-progress-${{ env.CANDIDATE_REF }}-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            reports/phase266/**
+            reports/ACCEPTANCE_REF_VALIDATION.json
+
+      - name: Enforce truth boundary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host 'Phase266 progresses and reports the real campaign evidence chain only.'
+          Write-Host 'Public-market audit is explicitly non-acceptance evidence.'
+          Write-Host 'No step authorizes real-money LIVE trading.'
