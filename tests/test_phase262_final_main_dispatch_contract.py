@@ -5,6 +5,13 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "phase262-final-main-phase245-dispatch.yml"
 
 
+def test_phase262_final_main_router_runs_on_every_main_push() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "push:" in text
+    assert "branches: [main]" in text
+    assert "paths:" not in text
+
+
 def test_phase262_final_main_router_waits_for_all_hosted_gates() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     for name in (
