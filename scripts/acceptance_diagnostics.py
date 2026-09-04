@@ -37,6 +37,8 @@ def redact_text(text: str, env: Mapping[str, str] | None = None) -> str:
 def classify_blocker(output: str, returncode: int | None, *, tool: str | None = None) -> str:
     """Return a stable, non-secret blocker category from command output."""
     text = (output or "").lower()
+    if "modulenotfounderror" in text or "no module named" in text:
+        return "RUNTIME_DEPENDENCY_MISSING"
     if any(p in text for p in (
         "could not resolve", "temporary failure in name resolution", "name or service not known",
         "getaddrinfo", "enotfound", "dns lookup failed",
