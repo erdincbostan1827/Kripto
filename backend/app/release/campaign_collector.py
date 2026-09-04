@@ -25,6 +25,7 @@ COLLECTION_CLASSIFICATION = "PHASE265_REAL_CAMPAIGN_COLLECTION"
 SEALED_SOURCE_CLASSIFICATION = "PHASE265_SEALED_REAL_CAMPAIGN_SOURCE"
 ZERO_HASH = "0" * 64
 MAX_FUTURE_SKEW_SECONDS = 300
+MAX_REALTIME_ATTESTATION_SKEW_SECONDS = 300
 FORBIDDEN_RAW_KINDS = frozenset({"live_shadow_order_submit_attempt", "live_shadow_exchange_submit_call"})
 PUBLIC_BINANCE_ORIGIN = "https://api.binance.com"
 UNATTESTED_PRODUCER = "EXTERNAL_UNATTESTED_AUDIT"
@@ -249,6 +250,10 @@ def load_collection(
                         raise ValueError("telemetry attestation key is required to load acceptance-eligible events")
                     if not _verify_attestation(row, telemetry_key=telemetry_key):
                         raise ValueError("campaign telemetry attestation verification failed")
+                    if not kind.startswith("profitability_"):
+                        skew = abs((recorded_at - observed_at).total_seconds())
+                        if skew > MAX_REALTIME_ATTESTATION_SKEW_SECONDS:
+                            raise ValueError("attested realtime protected-runtime observation is backdated or future-skewed")
                     row["_phase265_attestation_verified"] = True
                 else:
                     if producer != UNATTESTED_PRODUCER or "attestation" in row:
@@ -314,11 +319,12 @@ def append_collection_event(
     kind: str,
     payload: dict[str, Any],
     observed_at: datetime,
+    telemetry_key: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Append audit-only telemetry. It can never contribute to acceptance metrics."""
     reference_now = (now or _utc_now()).astimezone(timezone.utc)
-    rows = load_collection(path, now=reference_now)
+    rows = load_collection(path, telemetry_key=telemetry_key, now=reference_now)
     record = _base_event_record(
         rows,
         kind=kind,
@@ -345,12 +351,17 @@ def append_attested_runtime_event(
     if producer not in TRUSTED_RUNTIME_PRODUCERS:
         raise ValueError("unsupported protected runtime producer")
     reference_now = (now or _utc_now()).astimezone(timezone.utc)
+    observed = observed_at.astimezone(timezone.utc)
+    if not kind.startswith("profitability_"):
+        skew = abs((reference_now - observed).total_seconds())
+        if skew > MAX_REALTIME_ATTESTATION_SKEW_SECONDS:
+            raise ValueError("attested realtime protected-runtime observation is backdated or future-skewed")
     rows = load_collection(path, telemetry_key=telemetry_key, now=reference_now)
     record = _base_event_record(
         rows,
         kind=kind,
         payload=payload,
-        observed_at=observed_at,
+        observed_at=observed,
         now=reference_now,
         producer=producer,
     )
