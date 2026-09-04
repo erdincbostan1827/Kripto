@@ -1,0 +1,105 @@
+name: Phase266 Campaign Runtime Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/app/release/campaign_runtime_state.py'
+      - 'scripts/external/phase266_campaign_runtime.py'
+      - 'tools/run_phase266_campaign_runtime.ps1'
+      - 'tests/test_phase266_campaign_runtime.py'
+      - '.github/workflows/phase266-protected-campaign-sampling.yml'
+      - '.github/workflows/phase266-campaign-runtime-contract.yml'
+  pull_request:
+    paths:
+      - 'backend/app/release/campaign_runtime_state.py'
+      - 'scripts/external/phase266_campaign_runtime.py'
+      - 'tools/run_phase266_campaign_runtime.ps1'
+      - 'tests/test_phase266_campaign_runtime.py'
+      - '.github/workflows/phase266-protected-campaign-sampling.yml'
+      - '.github/workflows/phase266-campaign-runtime-contract.yml'
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.12'
+  UV_VERSION: '0.12.9'
+
+jobs:
+  phase266-contract:
+    name: phase266-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          check-latest: false
+
+      - name: Install locked test environment
+        run: |
+          python -m pip install "uv==${UV_VERSION}"
+          uv sync --locked --extra test
+
+      - name: Compile Phase266 surfaces
+        run: |
+          .venv/bin/python -m py_compile \
+            backend/app/release/campaign_runtime_state.py \
+            scripts/external/phase266_campaign_runtime.py \
+            tests/test_phase266_campaign_runtime.py
+
+      - name: Run Phase266 fail-closed contract tests
+        run: .venv/bin/python -m pytest -q -W error tests/test_phase266_campaign_runtime.py
+
+      - name: Assert no LIVE order surface exists in Phase266 runner
+        run: |
+          if grep -Eq '\.(submit_order|cancel_order)\(' scripts/external/phase266_campaign_runtime.py; then
+            echo 'Forbidden exchange order surface found in Phase266 runner.' >&2
+            exit 1
+          fi
+          if grep -Eq '"order\.(place|cancel)"' scripts/external/phase266_campaign_runtime.py; then
+            echo 'Forbidden WebSocket order method found in Phase266 runner.' >&2
+            exit 1
+          fi
+          if grep -Eq '(submit_order|cancel_order|order\.place|order\.cancel)' .github/workflows/phase266-protected-campaign-sampling.yml; then
+            echo 'Forbidden LIVE order surface found in Phase266 scheduler.' >&2
+            exit 1
+          fi
+
+      - name: Assert scheduled sampling stays exact-SHA fail-closed
+        run: |
+          grep -Fq 'Phase 245 Binance TESTNET Acceptance' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'No successful exact-SHA Phase245 Binance TESTNET acceptance exists' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'live_enabled' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'production_ready' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'PrivateReconnectDrill' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'StrategyLoop' .github/workflows/phase266-protected-campaign-sampling.yml
+
+  phase266-powershell-syntax:
+    name: phase266-powershell-syntax
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Parse Phase266 PowerShell wrapper
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          $path = (Resolve-Path 'tools/run_phase266_campaign_runtime.ps1').Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -ne 0) {
+            foreach ($parseError in $errors) {
+              Write-Error "$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)"
+            }
+            throw "PowerShell parser found $($errors.Count) syntax error(s)."
+          }
+          Write-Host 'Phase266 PowerShell syntax: PASS'
