@@ -160,107 +160,106 @@ def run_scenario(
         "checks": {},
     }
 
+    market_ok = False
+    limit_ok = False
+    cancel_ok = False
+    partial_ok = False
+
     if partial_price is None:
-        result["checks"]["partial_fill"] = {
-            "pass": False,
-            "status": "NOT_EXECUTED",
-            "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED",
-        }
-        result["all_pass"] = False
-        return result
-
-    probe_price = _step_quantize(partial_price, filters.tick_size)
-    probe_quantity = _bounded_quantity_for_price(
-        filters,
-        probe_price,
-        max_notional,
-        utilization=PARTIAL_CAP_UTILIZATION,
-    )
-    executable_bid_quantity = _executable_bid_quantity(adapter, symbol, probe_price)
-    if executable_bid_quantity <= 0 or executable_bid_quantity >= probe_quantity:
-        raise RuntimeError(
-            "partial-fill preflight rejected current order book: "
-            f"executable_bid_quantity={executable_bid_quantity}, probe_quantity={probe_quantity}"
+        result["checks"]["partial_fill"] = {"pass": False, "status": "NOT_EXECUTED", "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED"}
+    else:
+        probe_price = _step_quantize(partial_price, filters.tick_size)
+        probe_quantity = _bounded_quantity_for_price(
+            filters,
+            probe_price,
+            max_notional,
+            utilization=PARTIAL_CAP_UTILIZATION,
         )
+        executable_bid_quantity = _executable_bid_quantity(adapter, symbol, probe_price)
+        if executable_bid_quantity <= 0 or executable_bid_quantity >= probe_quantity:
+            raise RuntimeError(
+                "partial-fill preflight rejected current order book: "
+                f"executable_bid_quantity={executable_bid_quantity}, probe_quantity={probe_quantity}"
+            )
 
-    market = adapter.submit_order(_intent(symbol, "BUY", "MARKET", quantity))
-    market_ok = (
-        market.state in {OrderState.FILLED, OrderState.PARTIALLY_FILLED}
-        and market.filled_quantity >= quantity
-    )
-    result["checks"]["market_order"] = {
-        "pass": market_ok,
-        "state": market.state.value,
-        "filled_quantity": str(market.filled_quantity),
-        "quantity": str(quantity),
-        "order_id": market.exchange_order_id,
-    }
-    if not market_ok:
-        result["checks"]["limit_order"] = {"pass": False, "status": "NOT_EXECUTED"}
-        result["checks"]["cancel"] = {"pass": False, "status": "NOT_EXECUTED"}
-        result["checks"]["partial_fill"] = {
-            "pass": False,
-            "status": "NOT_EXECUTED",
-            "reason": "MARKET_ACQUISITION_INCOMPLETE",
+        market = adapter.submit_order(_intent(symbol, "BUY", "MARKET", quantity))
+        market_ok = (
+            market.state in {OrderState.FILLED, OrderState.PARTIALLY_FILLED}
+            and market.filled_quantity >= quantity
+        )
+        result["checks"]["market_order"] = {
+            "pass": market_ok,
+            "state": market.state.value,
+            "filled_quantity": str(market.filled_quantity),
+            "quantity": str(quantity),
+            "order_id": market.exchange_order_id,
         }
-        result["all_pass"] = False
-        return result
+        if not market_ok:
+            result["checks"]["limit_order"] = {"pass": market_ok, "status": "NOT_EXECUTED"}
+            result["checks"]["cancel"] = {"pass": market_ok, "status": "NOT_EXECUTED"}
+            result["checks"]["partial_fill"] = {
+                "pass": market_ok,
+                "status": "NOT_EXECUTED",
+                "reason": "MARKET_ACQUISITION_INCOMPLETE",
+            }
+            result["all_pass"] = market_ok
+            return result
 
-    # Use a smaller quantity at the deliberately high cancellation price so every
-    # submitted order remains inside the same max-notional safety boundary.
-    limit_price = _step_quantize(ticker_price * Decimal("1.50"), filters.tick_size, up=True)
-    limit_quantity = _bounded_quantity_for_price(
-        filters,
-        limit_price,
-        max_notional,
-        utilization=PARTIAL_CAP_UTILIZATION,
-    )
-    limit_order = adapter.submit_order(
-        _intent(symbol, "SELL", "LIMIT", limit_quantity, price=limit_price)
-    )
-    limit_ok = limit_order.exchange_order_id is not None and limit_order.state in {
-        OrderState.ACKNOWLEDGED,
-        OrderState.PARTIALLY_FILLED,
-    }
-    result["checks"]["limit_order"] = {
-        "pass": limit_ok,
-        "state": limit_order.state.value,
-        "quantity": str(limit_quantity),
-        "price": str(limit_price),
-        "order_id": limit_order.exchange_order_id,
-    }
-    cancel = adapter.cancel_order(symbol, limit_order.exchange_order_id or "")
-    cancel_ok = cancel.state == OrderState.CANCELLED
-    result["checks"]["cancel"] = {
-        "pass": cancel_ok,
-        "state": cancel.state.value,
-        "order_id": cancel.exchange_order_id,
-    }
+        # Use a smaller quantity at the deliberately high cancellation price so every
+        # submitted order remains inside the same max-notional safety boundary.
+        limit_price = _step_quantize(ticker_price * Decimal("1.50"), filters.tick_size, up=True)
+        limit_quantity = _bounded_quantity_for_price(
+            filters,
+            limit_price,
+            max_notional,
+            utilization=PARTIAL_CAP_UTILIZATION,
+        )
+        limit_order = adapter.submit_order(
+            _intent(symbol, "SELL", "LIMIT", limit_quantity, price=limit_price)
+        )
+        limit_ok = limit_order.exchange_order_id is not None and limit_order.state in {
+            OrderState.ACKNOWLEDGED,
+            OrderState.PARTIALLY_FILLED,
+        }
+        result["checks"]["limit_order"] = {
+            "pass": limit_ok,
+            "state": limit_order.state.value,
+            "quantity": str(limit_quantity),
+            "price": str(limit_price),
+            "order_id": limit_order.exchange_order_id,
+        }
+        cancel = adapter.cancel_order(symbol, limit_order.exchange_order_id or "")
+        cancel_ok = cancel.state == OrderState.CANCELLED
+        result["checks"]["cancel"] = {
+            "pass": cancel_ok,
+            "state": cancel.state.value,
+            "order_id": cancel.exchange_order_id,
+        }
 
-    # PASS is still based only on the real exchange reporting 0 < filled < quantity.
-    probe = adapter.submit_order(
-        _intent(symbol, "SELL", "LIMIT", probe_quantity, price=probe_price)
-    )
-    deadline = time.monotonic() + max(0.1, poll_seconds)
-    current = probe
-    while time.monotonic() < deadline:
-        current = adapter.get_order(symbol, order_id=probe.exchange_order_id)
-        if current.filled_quantity > 0:
-            break
-        time.sleep(min(0.5, poll_seconds / 4 if poll_seconds > 0 else 0.1))
+        # PASS is still based only on the real exchange reporting 0 < filled < quantity.
+        probe = adapter.submit_order(
+            _intent(symbol, "SELL", "LIMIT", probe_quantity, price=probe_price)
+        )
+        deadline = time.monotonic() + max(0.1, poll_seconds)
+        current = probe
+        while time.monotonic() < deadline:
+            current = adapter.get_order(symbol, order_id=probe.exchange_order_id)
+            if current.filled_quantity > 0:
+                break
+            time.sleep(min(0.5, poll_seconds / 4 if poll_seconds > 0 else 0.1))
 
-    partial_ok = current.filled_quantity > 0 and current.filled_quantity < current.quantity
-    result["checks"]["partial_fill"] = {
-        "pass": partial_ok,
-        "state": current.state.value,
-        "filled_quantity": str(current.filled_quantity),
-        "quantity": str(current.quantity),
-        "probe_price": str(probe_price),
-        "preflight_executable_bid_quantity": str(executable_bid_quantity),
-        "order_id": current.exchange_order_id,
-    }
-    if current.state not in {OrderState.FILLED, OrderState.CANCELLED}:
-        adapter.cancel_order(symbol, current.exchange_order_id or "")
+        partial_ok = current.filled_quantity > 0 and current.filled_quantity < current.quantity
+        result["checks"]["partial_fill"] = {
+            "pass": partial_ok,
+            "state": current.state.value,
+            "filled_quantity": str(current.filled_quantity),
+            "quantity": str(current.quantity),
+            "probe_price": str(probe_price),
+            "preflight_executable_bid_quantity": str(executable_bid_quantity),
+            "order_id": current.exchange_order_id,
+        }
+        if current.state not in {OrderState.FILLED, OrderState.CANCELLED}:
+            adapter.cancel_order(symbol, current.exchange_order_id or "")
 
     result["all_pass"] = bool(market_ok and limit_ok and cancel_ok and partial_ok)
     return result
@@ -289,17 +288,7 @@ def main() -> int:
             partial_price=partial_price,
         )
     except Exception as exc:
-        print(
-            json.dumps(
-                {
-                    "all_pass": False,
-                    "error_type": type(exc).__name__,
-                    "error": str(exc),
-                    "endpoint": TESTNET_URL,
-                },
-                sort_keys=True,
-            )
-        )
+        print(json.dumps({"all_pass": False, "error_type": type(exc).__name__, "error": str(exc), "endpoint": TESTNET_URL}, sort_keys=True))
         return 2
     finally:
         adapter.client.close()
