@@ -56,7 +56,7 @@ ACCEPTANCE_PLANS: Final[dict[str, tuple[tuple[str, tuple[str, ...], bool], ...]]
             "-e", "BINANCE_TESTNET_SYMBOL",
             "-e", "BINANCE_TESTNET_MAX_NOTIONAL",
             "-e", "BINANCE_TESTNET_PARTIAL_PRICE",
-            "app", "python", "scripts/external/binance_testnet_acceptance.py",
+            "app", "python", "scripts/external/binance_testnet_acceptance_hardened.py",
         ),
         True,
     ),),
