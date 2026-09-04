@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
+import sys
 
-from app.exchange.models import SymbolFilters
-from scripts.external import binance_testnet_acceptance as legacy
+ROOT = Path(__file__).resolve().parents[2]
+BACKEND = ROOT / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
+
+from app.exchange.models import SymbolFilters  # noqa: E402
+from scripts.external import binance_testnet_acceptance as legacy  # noqa: E402
 
 
 def _positive_decimal(raw: object) -> Decimal | None:
