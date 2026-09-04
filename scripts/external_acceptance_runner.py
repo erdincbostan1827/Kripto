@@ -16,8 +16,11 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+BACKEND = ROOT / "backend"
+for search_root in (ROOT, BACKEND):
+    search_root_text = str(search_root)
+    if search_root_text not in sys.path:
+        sys.path.insert(0, search_root_text)
 REPORTS = ROOT / "reports" / "external_acceptance"
 GIT_PROBE_TIMEOUT_SECONDS = 10
 
