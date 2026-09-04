@@ -56,7 +56,7 @@ def _bounded_quantity_for_price(
     minimum_target = max(filters.min_notional * Decimal("1.10"), price * filters.min_qty)
     if minimum_target > budget:
         raise RuntimeError(
-            f"minimum executable notional {minimum_target} exceeds bounded budget {budget}"
+            f"minimum executable notional {minimum_target} exceeds safety cap bounded budget {budget}"
         )
 
     quantity = _step_quantize(budget / price, filters.step_size)
