@@ -157,10 +157,9 @@ jobs:
         id: audit
         continue-on-error: true
         working-directory: frontend
-        run: |
-          set -o pipefail
-          mkdir -p ../reports
-          npm audit --audit-level=critical 2>&1 | tee ../reports/NPM_AUDIT.txt
+        env:
+          NPM_AUDIT_OUTPUT: ../reports/NPM_AUDIT.txt
+        run: bash ../scripts/npm_audit_gate.sh
       - name: Upload frontend diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
