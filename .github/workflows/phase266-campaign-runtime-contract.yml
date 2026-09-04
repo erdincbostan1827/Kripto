@@ -9,6 +9,7 @@ on:
       - 'scripts/external/phase266_campaign_runtime.py'
       - 'tools/run_phase266_campaign_runtime.ps1'
       - 'tests/test_phase266_campaign_runtime.py'
+      - '.github/workflows/phase266-protected-campaign-sampling.yml'
       - '.github/workflows/phase266-campaign-runtime-contract.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'scripts/external/phase266_campaign_runtime.py'
       - 'tools/run_phase266_campaign_runtime.ps1'
       - 'tests/test_phase266_campaign_runtime.py'
+      - '.github/workflows/phase266-protected-campaign-sampling.yml'
       - '.github/workflows/phase266-campaign-runtime-contract.yml'
 
 permissions:
@@ -65,6 +67,19 @@ jobs:
             echo 'Forbidden WebSocket order method found in Phase266 runner.' >&2
             exit 1
           fi
+          if grep -Eq '(submit_order|cancel_order|order\.place|order\.cancel)' .github/workflows/phase266-protected-campaign-sampling.yml; then
+            echo 'Forbidden LIVE order surface found in Phase266 scheduler.' >&2
+            exit 1
+          fi
+
+      - name: Assert scheduled sampling stays exact-SHA fail-closed
+        run: |
+          grep -Fq 'Phase 245 Binance TESTNET Acceptance' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'No successful exact-SHA Phase245 Binance TESTNET acceptance exists' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'live_enabled' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'production_ready' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'PrivateReconnectDrill' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq 'StrategyLoop' .github/workflows/phase266-protected-campaign-sampling.yml
 
   phase266-powershell-syntax:
     name: phase266-powershell-syntax
