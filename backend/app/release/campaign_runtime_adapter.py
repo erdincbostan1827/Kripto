@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from app.backtest.dataset import ReproducibilityManifest, verify_reproducibility_manifest
 from app.backtest.engine import BacktestResult
@@ -83,7 +83,7 @@ class ProtectedCampaignRuntimeAdapter:
 
     def record_private_message(self, message: dict[str, Any], *, observed_at: datetime) -> ProjectionResult:
         event = parse_user_event(message)
-        result = self._private.project(event)
+        result = cast(ProjectionResult, self._private.project(event))
         canonical = json.dumps(message, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
         event_id = hashlib.sha256(canonical).hexdigest()
         self._emit(
@@ -169,13 +169,18 @@ class ProtectedCampaignRuntimeAdapter:
         symbol, bid, ask = self._snapshot(snapshot)
         before = len(self._paper.fills)
         if long_intent is not None:
+            take_profits = (
+                D(long_intent.take_profits[0]),
+                D(long_intent.take_profits[1]),
+                D(long_intent.take_profits[2]),
+            )
             self._paper.open_long(
                 symbol,
                 D(long_intent.qty),
                 bid,
                 ask,
                 D(long_intent.stop_loss),
-                tuple(D(value) for value in long_intent.take_profits),
+                take_profits,
                 latency_ms=latency_ms,
             )
             decision = "LONG"
