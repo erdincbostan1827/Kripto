@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -19,13 +20,23 @@ from app.release.campaign_evidence_recorder import (
 )
 from app.release.paper_campaign import PaperCampaignEvidence, PaperCampaignPolicy
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 COLLECTION_CLASSIFICATION = "PHASE265_REAL_CAMPAIGN_COLLECTION"
 SEALED_SOURCE_CLASSIFICATION = "PHASE265_SEALED_REAL_CAMPAIGN_SOURCE"
 ZERO_HASH = "0" * 64
 MAX_FUTURE_SKEW_SECONDS = 300
 FORBIDDEN_RAW_KINDS = frozenset({"live_shadow_order_submit_attempt", "live_shadow_exchange_submit_call"})
 PUBLIC_BINANCE_ORIGIN = "https://api.binance.com"
+UNATTESTED_PRODUCER = "EXTERNAL_UNATTESTED_AUDIT"
+TRUSTED_RUNTIME_PRODUCERS = frozenset(
+    {
+        "PROTECTED_PRIVATE_STREAM_RUNTIME",
+        "PROTECTED_PAPER_RUNTIME",
+        "PROTECTED_LIVE_SHADOW_RUNTIME",
+        "PROTECTED_PIT_RUNTIME",
+    }
+)
+ATTESTATION_SCHEME = "HMAC-SHA256"
 
 
 def _utc_now() -> datetime:
@@ -50,6 +61,7 @@ def _canonical_bytes(payload: dict[str, Any]) -> bytes:
 def _record_hash(payload: dict[str, Any]) -> str:
     row = dict(payload)
     row.pop("record_sha256", None)
+    row.pop("_phase265_attestation_verified", None)
     return hashlib.sha256(_canonical_bytes(row)).hexdigest()
 
 
@@ -73,6 +85,50 @@ def _binding(*, candidate_sha: str, environment_hash: str, topology_hash: str) -
         "acceptance_environment_id_hash": _exact_hex(environment_hash, 64, field="acceptance environment id hash"),
         "topology_hash": _exact_hex(topology_hash, 64, field="topology hash"),
     }
+
+
+def _attestation_key_bytes(value: str) -> bytes:
+    raw = value.encode("utf-8")
+    if len(raw) < 32:
+        raise ValueError("Phase265 telemetry attestation key must contain at least 32 UTF-8 bytes")
+    return raw
+
+
+def telemetry_key_id(value: str) -> str:
+    return hashlib.sha256(_attestation_key_bytes(value)).hexdigest()
+
+
+def _attestation_message(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": record["schema_version"],
+        "classification": record["classification"],
+        "candidate_sha": record["candidate_sha"],
+        "acceptance_environment_id_hash": record["acceptance_environment_id_hash"],
+        "topology_hash": record["topology_hash"],
+        "sequence": record["sequence"],
+        "observed_at": record["observed_at"],
+        "kind": record["kind"],
+        "producer": record["producer"],
+        "payload": record["payload"],
+    }
+
+
+def _attest(record: dict[str, Any], *, telemetry_key: str) -> dict[str, str]:
+    key = _attestation_key_bytes(telemetry_key)
+    digest = hmac.new(key, _canonical_bytes(_attestation_message(record)), hashlib.sha256).hexdigest()
+    return {"scheme": ATTESTATION_SCHEME, "key_id": hashlib.sha256(key).hexdigest(), "sha256": digest}
+
+
+def _verify_attestation(record: dict[str, Any], *, telemetry_key: str) -> bool:
+    attestation = record.get("attestation")
+    if not isinstance(attestation, dict) or attestation.get("scheme") != ATTESTATION_SCHEME:
+        return False
+    expected = _attest(record, telemetry_key=telemetry_key)
+    return (
+        attestation.get("key_id") == expected["key_id"]
+        and isinstance(attestation.get("sha256"), str)
+        and hmac.compare_digest(str(attestation["sha256"]), expected["sha256"])
+    )
 
 
 def collection_path(state_dir: Path, *, repository_root: Path, candidate_sha: str) -> Path:
@@ -108,7 +164,7 @@ def initialize_collection(
         "recorded_at": _iso(timestamp),
         "previous_sha256": ZERO_HASH,
         **binding,
-        "collector_mode": "REAL_EXTERNAL_APPEND_ONLY",
+        "collector_mode": "ATTESTED_PROTECTED_RUNTIME_APPEND_ONLY",
         "synthetic": False,
         "live_enabled": False,
         "production_ready": False,
@@ -128,6 +184,7 @@ def load_collection(
     candidate_sha: str | None = None,
     environment_hash: str | None = None,
     topology_hash: str | None = None,
+    telemetry_key: str | None = None,
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     reference_now = (now or _utc_now()).astimezone(timezone.utc)
@@ -160,9 +217,9 @@ def load_collection(
                 "topology_hash": row.get("topology_hash"),
             }
             if index == 0:
-                if row.get("record_type") != "header" or row.get("collector_mode") != "REAL_EXTERNAL_APPEND_ONLY":
+                if row.get("record_type") != "header" or row.get("collector_mode") != "ATTESTED_PROTECTED_RUNTIME_APPEND_ONLY":
                     raise ValueError("campaign collection header is invalid")
-                if row.get("synthetic") is not False or row.get("live_enabled") is not False:
+                if row.get("synthetic") is not False or row.get("live_enabled") is not False or row.get("production_ready") is not False:
                     raise ValueError("campaign collection safety boundary is invalid")
                 _binding(
                     candidate_sha=str(row.get("candidate_sha", "")),
@@ -183,6 +240,20 @@ def load_collection(
                 observed_at = _parse_time(row.get("observed_at"))
                 if observed_at.timestamp() > reference_now.timestamp() + MAX_FUTURE_SKEW_SECONDS:
                     raise ValueError("campaign collection contains a future observation")
+                eligible = row.get("acceptance_eligible") is True
+                producer = str(row.get("producer", ""))
+                if eligible:
+                    if producer not in TRUSTED_RUNTIME_PRODUCERS:
+                        raise ValueError("acceptance-eligible campaign event has an untrusted producer")
+                    if telemetry_key is None:
+                        raise ValueError("telemetry attestation key is required to load acceptance-eligible events")
+                    if not _verify_attestation(row, telemetry_key=telemetry_key):
+                        raise ValueError("campaign telemetry attestation verification failed")
+                    row["_phase265_attestation_verified"] = True
+                else:
+                    if producer != UNATTESTED_PRODUCER or "attestation" in row:
+                        raise ValueError("unattested audit event provenance is invalid")
+                    row["_phase265_attestation_verified"] = False
             rows.append(row)
             previous_hash = str(row["record_sha256"])
             previous_recorded_at = recorded_at
@@ -199,39 +270,36 @@ def load_collection(
     return rows
 
 
-def append_collection_event(
-    path: Path,
-    *,
-    kind: str,
-    payload: dict[str, Any],
-    observed_at: datetime,
-    now: datetime | None = None,
+def _base_event_record(
+    rows: list[dict[str, Any]], *, kind: str, payload: dict[str, Any], observed_at: datetime, now: datetime, producer: str
 ) -> dict[str, Any]:
     if kind in FORBIDDEN_RAW_KINDS:
         raise ValueError("live-shadow order submission evidence is forbidden by Phase265")
     _validate_event_payload(kind, payload)
-    reference_now = (now or _utc_now()).astimezone(timezone.utc)
     observed = observed_at.astimezone(timezone.utc)
-    if observed.timestamp() > reference_now.timestamp() + MAX_FUTURE_SKEW_SECONDS:
+    if observed.timestamp() > now.timestamp() + MAX_FUTURE_SKEW_SECONDS:
         raise ValueError("future observed_at is not accepted")
-    rows = load_collection(path, now=reference_now)
     header, last = rows[0], rows[-1]
-    if reference_now < _parse_time(last["recorded_at"]):
+    if now < _parse_time(last["recorded_at"]):
         raise ValueError("system clock moved backwards; refusing campaign collection append")
-    record: dict[str, Any] = {
+    return {
         "schema_version": SCHEMA_VERSION,
         "classification": COLLECTION_CLASSIFICATION,
         "record_type": "event",
         "sequence": len(rows),
-        "recorded_at": _iso(reference_now),
+        "recorded_at": _iso(now),
         "observed_at": _iso(observed),
         "previous_sha256": last["record_sha256"],
         "candidate_sha": header["candidate_sha"],
         "acceptance_environment_id_hash": header["acceptance_environment_id_hash"],
         "topology_hash": header["topology_hash"],
         "kind": kind,
+        "producer": producer,
         "payload": dict(payload),
     }
+
+
+def _persist_event(path: Path, record: dict[str, Any]) -> dict[str, Any]:
     record["record_sha256"] = _record_hash(record)
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
@@ -240,8 +308,66 @@ def append_collection_event(
     return record
 
 
+def append_collection_event(
+    path: Path,
+    *,
+    kind: str,
+    payload: dict[str, Any],
+    observed_at: datetime,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Append audit-only telemetry. It can never contribute to acceptance metrics."""
+    reference_now = (now or _utc_now()).astimezone(timezone.utc)
+    rows = load_collection(path, now=reference_now)
+    record = _base_event_record(
+        rows,
+        kind=kind,
+        payload=payload,
+        observed_at=observed_at,
+        now=reference_now,
+        producer=UNATTESTED_PRODUCER,
+    )
+    record["acceptance_eligible"] = False
+    return _persist_event(path, record)
+
+
+def append_attested_runtime_event(
+    path: Path,
+    *,
+    kind: str,
+    payload: dict[str, Any],
+    observed_at: datetime,
+    producer: str,
+    telemetry_key: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Append a protected-runtime event authenticated by a runner-only telemetry key."""
+    if producer not in TRUSTED_RUNTIME_PRODUCERS:
+        raise ValueError("unsupported protected runtime producer")
+    reference_now = (now or _utc_now()).astimezone(timezone.utc)
+    rows = load_collection(path, telemetry_key=telemetry_key, now=reference_now)
+    record = _base_event_record(
+        rows,
+        kind=kind,
+        payload=payload,
+        observed_at=observed_at,
+        now=reference_now,
+        producer=producer,
+    )
+    record["acceptance_eligible"] = True
+    record["attestation"] = _attest(record, telemetry_key=telemetry_key)
+    return _persist_event(path, record)
+
+
 def _events(rows: Iterable[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
-    return [row for row in rows if row.get("record_type") == "event" and row.get("kind") == kind]
+    return [
+        row
+        for row in rows
+        if row.get("record_type") == "event"
+        and row.get("kind") == kind
+        and row.get("acceptance_eligible") is True
+        and row.get("_phase265_attestation_verified") is True
+    ]
 
 
 def _elapsed_observed_days(rows: list[dict[str, Any]]) -> int:
@@ -410,8 +536,9 @@ class ReadOnlyBinancePublicCollector:
         ask = float(str(payload.get("askPrice")))
         if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0 or ask <= 0 or ask < bid:
             raise ValueError("invalid Binance public-market bid/ask snapshot")
+        observed = _iso(_utc_now())
         return {
-            "observation_id": hashlib.sha256(f"{normalized}|{_iso(_utc_now())}|{bid}|{ask}".encode()).hexdigest(),
+            "observation_id": hashlib.sha256(f"{normalized}|{observed}|{bid}|{ask}".encode()).hexdigest(),
             "symbol": normalized,
             "bid_price": bid,
             "ask_price": ask,
@@ -420,14 +547,30 @@ class ReadOnlyBinancePublicCollector:
         }
 
 
-def write_sealed_source(raw_path: Path, *, repository_root: Path, destination: Path) -> tuple[str, int]:
-    rows = load_collection(raw_path)
+def collection_event_counts(rows: Iterable[dict[str, Any]]) -> dict[str, int]:
+    events = [row for row in rows if row.get("record_type") == "event"]
+    eligible = [row for row in events if row.get("_phase265_attestation_verified") is True]
+    return {"total": len(events), "acceptance_eligible": len(eligible), "unattested_audit": len(events) - len(eligible)}
+
+
+def write_sealed_source(
+    raw_path: Path,
+    *,
+    repository_root: Path,
+    destination: Path,
+    telemetry_key: str,
+) -> tuple[str, int]:
+    rows = load_collection(raw_path, telemetry_key=telemetry_key)
     try:
         destination.resolve().relative_to(repository_root.resolve())
     except ValueError as exc:
         raise ValueError("sealed campaign source must be inside repository root") from exc
     destination.parent.mkdir(parents=True, exist_ok=True)
     raw_bytes = raw_path.read_bytes()
+    serialized_rows = [
+        {key: value for key, value in row.items() if key != "_phase265_attestation_verified"}
+        for row in rows
+    ]
     metadata = {
         "schema_version": SCHEMA_VERSION,
         "classification": SEALED_SOURCE_CLASSIFICATION,
@@ -437,7 +580,11 @@ def write_sealed_source(raw_path: Path, *, repository_root: Path, destination: P
         "candidate_sha": rows[0]["candidate_sha"],
         "acceptance_environment_id_hash": rows[0]["acceptance_environment_id_hash"],
         "topology_hash": rows[0]["topology_hash"],
-        "rows": rows,
+        "telemetry_key_id": telemetry_key_id(telemetry_key),
+        "event_counts": collection_event_counts(rows),
+        "rows": serialized_rows,
+        "live_enabled": False,
+        "production_ready": False,
     }
     encoded = json.dumps(metadata, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n"
     temporary = destination.with_suffix(destination.suffix + ".tmp")
