@@ -42,7 +42,6 @@ jobs:
     timeout-minutes: 30
     env:
       PYTHON_VERSION: '3.12.10'
-      ACCEPTANCE_CHALLENGE_VERIFY_COMMAND: ${{ secrets.ACCEPTANCE_CHALLENGE_VERIFY_COMMAND }}
 
     steps:
       - name: Resolve exact candidate
@@ -257,9 +256,7 @@ jobs:
           name: phase266-campaign-sampling-${{ github.run_id }}
           if-no-files-found: warn
           retention-days: 30
-          path: |
-            reports/phase266/SAMPLING_STATUS.json
-            reports/phase266/phase266_compose_config.txt
+          path: reports/phase266/SAMPLING_STATUS.json
 
       - name: Erase ephemeral topology material and process secret
         if: always()
@@ -267,4 +264,5 @@ jobs:
         run: |
           Remove-Item Env:PHASE265_TELEMETRY_HMAC_KEY -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath 'reports/phase266/phase266_runtime.env' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath 'reports/phase266/phase266_compose_config.txt' -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath 'secrets' -Recurse -Force -ErrorAction SilentlyContinue
