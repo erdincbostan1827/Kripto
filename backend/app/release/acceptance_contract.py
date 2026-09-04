@@ -15,7 +15,7 @@ PROFILE_TO_GROUPS: Final[dict[str, tuple[str, ...]]] = {
     "supply-chain": ("supply_chain",),
     "pitr": ("pitr",),
     "ha": ("ha",),
-    "worm": ("worm_storage",),
+    "worm": ("worm",),
     "testnet": ("testnet",),
     "provenance": ("provenance",),
     "campaigns": ("private_stream", "paper_campaign", "live_shadow", "profitability"),
