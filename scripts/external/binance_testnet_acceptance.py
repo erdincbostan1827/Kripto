@@ -276,30 +276,29 @@ def run_scenario(
     cancel_ok = False
     partial_ok = False
 
-    if partial_price is None and not auto_partial_price:
-        result["checks"]["partial_fill"] = {
-            "pass": partial_ok,
-            "status": "NOT_EXECUTED",
-            "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED",
-        }
+    if auto_partial_price:
+        initial_auto_probe = initial_auto_probe or _auto_probe_for_symbol(
+            adapter,
+            symbol,
+            max_notional,
+            acquired_quantity=quantity,
+        )
+        if initial_auto_probe is None or initial_auto_probe["quantity"] > quantity:
+            raise RuntimeError(
+                "AUTO partial-fill preflight rejected current TESTNET order book before acquisition"
+            )
+        partial_price = initial_auto_probe["price"]
+
+    if partial_price is None:
+        result["checks"]["partial_fill"] = {"pass": False, "status": "NOT_EXECUTED", "reason": "BINANCE_TESTNET_PARTIAL_PRICE_REQUIRED"}
     else:
         if auto_partial_price:
-            initial_probe = initial_auto_probe or _auto_probe_for_symbol(
-                adapter,
-                symbol,
-                max_notional,
-                acquired_quantity=quantity,
-            )
-            if initial_probe is None or initial_probe["quantity"] > quantity:
-                raise RuntimeError(
-                    "AUTO partial-fill preflight rejected current TESTNET order book before acquisition"
-                )
-            probe_price = initial_probe["price"]
-            probe_quantity = initial_probe["quantity"]
-            executable_bid_quantity = initial_probe["executable_bid_quantity"]
+            if initial_auto_probe is None:
+                raise RuntimeError("AUTO partial-fill preflight result unexpectedly missing")
+            probe_price = partial_price
+            probe_quantity = initial_auto_probe["quantity"]
+            executable_bid_quantity = initial_auto_probe["executable_bid_quantity"]
         else:
-            if partial_price is None:
-                raise RuntimeError("partial price is required")
             probe_price = _step_quantize(partial_price, filters.tick_size)
             probe_quantity = _bounded_quantity_for_price(
                 filters,
@@ -487,17 +486,7 @@ def main() -> int:
             auto_partial_price=auto_partial_price,
         )
     except Exception as exc:
-        print(
-            json.dumps(
-                {
-                    "all_pass": False,
-                    "error_type": type(exc).__name__,
-                    "error": str(exc),
-                    "endpoint": TESTNET_URL,
-                },
-                sort_keys=True,
-            )
-        )
+        print(json.dumps({"all_pass": False, "error_type": type(exc).__name__, "error": str(exc), "endpoint": TESTNET_URL}, sort_keys=True))
         return 2
     finally:
         adapter.client.close()
