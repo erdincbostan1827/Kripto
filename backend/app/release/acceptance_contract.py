@@ -31,7 +31,7 @@ ACCEPTANCE_PLANS: Final[dict[str, tuple[tuple[str, tuple[str, ...], bool], ...]]
     "runtime": (
         ("docker_compose_config", ("docker", "compose", "config", "--quiet"), True),
         ("docker_compose_up", ("docker", "compose", "up", "-d", "postgres", "redis"), True),
-        ("postgres_migration", ("docker", "compose", "run", "--rm", "app", "alembic", "upgrade", "head"), True),
+        ("postgres_migration", ("docker", "compose", "run", "--rm", "app", "python", "-m", "scripts.run_container_migrations"), True),
         ("redis_ping", ("docker", "compose", "exec", "-T", "redis", "redis-cli", "ping"), True),
         ("runtime_health", ("docker", "compose", "ps"), True),
     ),
