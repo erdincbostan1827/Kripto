@@ -15,6 +15,7 @@ on:
       - 'scripts/prohibited_scan.py'
       - 'scripts/secret_scan.py'
       - 'scripts/local_sast.py'
+      - 'scripts/npm_audit_gate.sh'
       - 'scripts/verify_source_locks.py'
       - 'scripts/verify_acceptance_contract_parity.py'
       - 'scripts/verify_workflow_action_pins.py'
@@ -34,6 +35,7 @@ on:
       - 'scripts/prohibited_scan.py'
       - 'scripts/secret_scan.py'
       - 'scripts/local_sast.py'
+      - 'scripts/npm_audit_gate.sh'
       - 'scripts/verify_source_locks.py'
       - 'scripts/verify_acceptance_contract_parity.py'
       - 'scripts/verify_workflow_action_pins.py'
@@ -93,12 +95,14 @@ jobs:
       - name: Install and verify frontend from committed lock
         working-directory: frontend
         shell: bash
+        env:
+          NPM_AUDIT_OUTPUT: ../reports/phase224/NPM_AUDIT.txt
         run: |
           set -euo pipefail
           npm ci --ignore-scripts
           npm test
           npm run build
-          npm audit --audit-level=critical
+          bash ../scripts/npm_audit_gate.sh
 
       - name: Install backend from committed lock
         run: uv sync --locked --extra test
