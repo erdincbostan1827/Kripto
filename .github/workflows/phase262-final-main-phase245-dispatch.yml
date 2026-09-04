@@ -15,7 +15,7 @@ concurrency:
 jobs:
   wait-gates-and-dispatch:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
     env:
       GH_TOKEN: ${{ github.token }}
       CANDIDATE_REF: ${{ github.sha }}
@@ -80,6 +80,19 @@ jobs:
           echo "Timed out waiting for exact-main gates." >&2
           exit 4
 
+      - name: Capture previous exact-SHA Phase245 run number
+        shell: bash
+        run: |
+          set -euo pipefail
+          json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=workflow_dispatch&branch=main&per_page=100")"
+          previous="$(jq -r --arg sha "$CANDIDATE_REF" '[.workflow_runs[] | select(.path == ".github/workflows/phase245-binance-testnet-acceptance.yml" and .head_branch == "main" and .event == "workflow_dispatch" and .head_sha == $sha)] | sort_by(.run_number) | last | .run_number // 0' <<<"$json")"
+          if [[ ! "$previous" =~ ^[0-9]+$ ]]; then
+            echo "Could not resolve previous Phase245 run number: $previous" >&2
+            exit 5
+          fi
+          echo "PHASE262_PREVIOUS_PHASE245_RUN_NUMBER=$previous" >> "$GITHUB_ENV"
+          echo "previous_phase245_run_number=$previous"
+
       - name: Dispatch exact-SHA Phase245 TESTNET acceptance
         shell: bash
         run: |
@@ -94,8 +107,55 @@ jobs:
           echo "PHASE262_PHASE245_DISPATCH=ACCEPTED"
           echo "candidate_ref=$CANDIDATE_REF"
 
+      - name: Wait for newly-dispatched exact-SHA Phase245 PASS
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous="$PHASE262_PREVIOUS_PHASE245_RUN_NUMBER"
+          for attempt in $(seq 1 540); do
+            json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=workflow_dispatch&branch=main&per_page=100")"
+            row="$(jq -c --arg sha "$CANDIDATE_REF" --argjson previous "$previous" '[.workflow_runs[] | select(.path == ".github/workflows/phase245-binance-testnet-acceptance.yml" and .head_branch == "main" and .event == "workflow_dispatch" and .head_sha == $sha and .run_number > $previous)] | sort_by(.run_number) | last // empty' <<<"$json")"
+            if [[ -z "$row" ]]; then
+              echo "New exact-SHA Phase245 run not visible yet."
+              sleep 10
+              continue
+            fi
+            run_id="$(jq -r '.id' <<<"$row")"
+            run_number="$(jq -r '.run_number' <<<"$row")"
+            status="$(jq -r '.status' <<<"$row")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$row")"
+            echo "phase245_run_id=$run_id run_number=$run_number status=$status conclusion=$conclusion"
+            if [[ "$status" == "completed" && "$conclusion" != "success" ]]; then
+              echo "New exact-SHA Phase245 failed: $conclusion" >&2
+              exit 6
+            fi
+            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
+              echo "PHASE262_PHASE245_RUN_ID=$run_id" >> "$GITHUB_ENV"
+              echo "PHASE262_PHASE245_EXACT_SHA=PASS"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for newly-dispatched exact-SHA Phase245." >&2
+          exit 7
+
+      - name: Dispatch exact-SHA Phase266 protected campaign sampling
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run phase266-protected-campaign-sampling.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f candidate_ref="$CANDIDATE_REF" \
+            -f symbol=BTCUSDT \
+            -f timeframe=1h \
+            -f max_cycles=4
+          echo "PHASE262_PHASE266_DISPATCH=ACCEPTED"
+          echo "phase245_prerequisite_run_id=$PHASE262_PHASE245_RUN_ID"
+          echo "candidate_ref=$CANDIDATE_REF"
+
       - name: Enforce truth boundary
         shell: bash
         run: |
-          echo "This workflow only dispatches Phase245 after exact-SHA main-branch hosted gates PASS."
-          echo "Dispatch success is not Phase245 acceptance evidence and never authorizes LIVE trading."
+          echo "This workflow binds hosted final-main gates, a newly dispatched exact-SHA Phase245 PASS, and the Phase266 campaign dispatch to the same main SHA."
+          echo "Dispatch success is not Phase266 campaign acceptance evidence and never authorizes LIVE trading."
