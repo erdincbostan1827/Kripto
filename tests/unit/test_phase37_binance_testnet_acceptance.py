@@ -23,6 +23,14 @@ class FakeAdapter:
     def get_ticker(self, symbol):
         return {"price": "50000"}
 
+    def get_order_book(self, symbol):
+        return {
+            "bids": [
+                ["50000", "0.00010"],
+                ["49999", "1.00000"],
+            ]
+        }
+
     def submit_order(self, intent):
         oid = str(len(self.orders) + 1)
         self.orders.append(intent)
