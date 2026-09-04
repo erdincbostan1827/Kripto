@@ -3,8 +3,11 @@ import json
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+BACKEND = ROOT / "backend"
+for search_root in (ROOT, BACKEND):
+    search_root_text = str(search_root)
+    if search_root_text not in sys.path:
+        sys.path.insert(0, search_root_text)
 from backend.app.release.acceptance_challenge import create_challenge
 
 if __name__ == "__main__":
