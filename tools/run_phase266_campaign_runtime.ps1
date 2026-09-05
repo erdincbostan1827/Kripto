@@ -16,10 +16,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-# PowerShell does not guarantee that LASTEXITCODE exists before the first native
-# process in every StrictMode host. Seed the automatic variable so fail-closed
-# checks can safely read it; native processes overwrite it with their real code.
-$LASTEXITCODE = 0
+# Seed the automatic native-process exit variable in global scope. A script-scope
+# assignment would shadow the value PowerShell updates after native commands and
+# could falsely print PASS even when the Python runtime exited non-zero.
+$global:LASTEXITCODE = 0
 
 function Require-Command {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -135,8 +135,9 @@ Write-Host "State directory: $stateFull"
 Write-Host 'LIVE remains disabled; this wrapper exposes no real-order command.'
 
 & $venvPython @arguments
-if ($LASTEXITCODE -ne 0) {
-    throw "PHASE266_PROTECTED_CAMPAIGN_RUNTIME=FAIL (exit=$LASTEXITCODE)"
+$nativeExitCode = $LASTEXITCODE
+if ($nativeExitCode -ne 0) {
+    throw "PHASE266_PROTECTED_CAMPAIGN_RUNTIME=FAIL (exit=$nativeExitCode)"
 }
 Write-Host 'PHASE266_PROTECTED_CAMPAIGN_RUNTIME=PASS'
 Write-Host 'PASS means only that the requested protected runtime action completed. Campaign acceptance still depends on the Phase265 blockers reaching zero.'
