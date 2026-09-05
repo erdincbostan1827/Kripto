@@ -81,11 +81,34 @@ def verify_text(text: str) -> list[str]:
     return problems
 
 
+def _trigger_block(text: str, trigger: str, next_trigger: str | None = None) -> str:
+    marker = f'\n  {trigger}:\n'
+    if marker not in text:
+        return ''
+    block = text.split(marker, 1)[1]
+    if next_trigger is not None:
+        next_marker = f'\n  {next_trigger}:\n'
+        if next_marker in block:
+            block = block.split(next_marker, 1)[0]
+    return block
+
+
 def verify_evidence_trigger_text(text: str) -> list[str]:
     problems: list[str] = []
-    for snippet in EVIDENCE_TRIGGER_SNIPPETS:
-        if text.count(snippet) < 2:
-            problems.append(f'EVIDENCE_TRIGGER_COVERAGE_MISSING:{snippet}')
+    push_block = _trigger_block(text, 'push', 'pull_request')
+    pull_request_block = _trigger_block(text, 'pull_request')
+
+    if not push_block:
+        problems.append('EVIDENCE_PUSH_TRIGGER_MISSING')
+    elif 'paths:' in push_block:
+        problems.append('EVIDENCE_MAIN_PUSH_MUST_NOT_BE_PATH_FILTERED')
+
+    if not pull_request_block:
+        problems.append('EVIDENCE_PULL_REQUEST_TRIGGER_MISSING')
+    else:
+        for snippet in EVIDENCE_TRIGGER_SNIPPETS:
+            if snippet not in pull_request_block:
+                problems.append(f'EVIDENCE_PR_TRIGGER_COVERAGE_MISSING:{snippet}')
     return problems
 
 
@@ -103,7 +126,7 @@ def main() -> int:
     print('bandit_policy=reviewed-finding-set-fingerprint+new-or-changed-findings-fail')
     print('runtime_image_build=backend/Dockerfile:runtime')
     print('ghcr_identity=lowercase_repository+exact_git_sha')
-    print('evidence_trigger_coverage=backend+scripts+config+tests:on-push+pull-request')
+    print('evidence_trigger_coverage=unfiltered-main-push+backend+scripts+config+tests:on-pull-request')
     print('real_target_preflight=required+fail-closed+redacted-evidence')
     print('real_target_boundary=self-hosted+production-acceptance+challenge-trust')
     return 0

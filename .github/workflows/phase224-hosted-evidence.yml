@@ -5,24 +5,6 @@ on:
     branches:
       - main
       - phase224-hosted-evidence-readiness
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'tests/**'
-      - 'scripts/local_acceptance_runner.py'
-      - 'scripts/merge_local_acceptance.py'
-      - 'scripts/verify_local_acceptance.py'
-      - 'scripts/prohibited_scan.py'
-      - 'scripts/secret_scan.py'
-      - 'scripts/local_sast.py'
-      - 'scripts/verify_source_locks.py'
-      - 'scripts/verify_acceptance_contract_parity.py'
-      - 'scripts/verify_workflow_action_pins.py'
-      - 'uv.lock'
-      - 'pyproject.toml'
-      - 'docker-compose.yml'
-      - 'Dockerfile'
-      - '.github/workflows/phase224-hosted-evidence.yml'
   pull_request:
     paths:
       - 'backend/**'

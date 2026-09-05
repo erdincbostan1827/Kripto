@@ -4,13 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'backend/app/release/campaign_runtime_state.py'
-      - 'scripts/external/phase266_campaign_runtime.py'
-      - 'tools/run_phase266_campaign_runtime.ps1'
-      - 'tests/test_phase266_campaign_runtime.py'
-      - '.github/workflows/phase266-protected-campaign-sampling.yml'
-      - '.github/workflows/phase266-campaign-runtime-contract.yml'
   pull_request:
     paths:
       - 'backend/app/release/campaign_runtime_state.py'

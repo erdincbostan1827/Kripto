@@ -40,10 +40,22 @@ def _valid_workflow_text() -> str:
 
 
 def _valid_evidence_trigger_text() -> str:
-    lines: list[str] = []
-    for _ in range(2):
-        lines.extend(EVIDENCE_TRIGGER_SNIPPETS)
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            "name: Phase 225 Production Build Evidence",
+            "",
+            "on:",
+            "  push:",
+            "    branches:",
+            "      - main",
+            "  pull_request:",
+            "    paths:",
+            *[f"    {snippet}" for snippet in EVIDENCE_TRIGGER_SNIPPETS],
+            "",
+            "permissions:",
+            "  contents: read",
+        ]
+    )
 
 
 def test_valid_workflow_passes() -> None:
@@ -108,10 +120,17 @@ def test_evidence_workflow_covers_all_scanned_source_changes() -> None:
     assert verify_evidence_trigger_text(_valid_evidence_trigger_text()) == []
 
 
-def test_evidence_workflow_requires_push_and_pr_coverage() -> None:
-    text = _valid_evidence_trigger_text().replace("- 'scripts/**'", '', 1)
+def test_evidence_workflow_requires_unfiltered_push_and_pr_coverage() -> None:
+    text = _valid_evidence_trigger_text().replace("    - 'scripts/**'", '', 1)
     problems = verify_evidence_trigger_text(text)
-    assert "EVIDENCE_TRIGGER_COVERAGE_MISSING:- 'scripts/**'" in problems
+    assert "EVIDENCE_PR_TRIGGER_COVERAGE_MISSING:- 'scripts/**'" in problems
+
+    text = _valid_evidence_trigger_text().replace(
+        "  push:\n    branches:\n      - main",
+        "  push:\n    branches:\n      - main\n    paths:\n      - 'backend/**'",
+    )
+    problems = verify_evidence_trigger_text(text)
+    assert 'EVIDENCE_MAIN_PUSH_MUST_NOT_BE_PATH_FILTERED' in problems
 
 
 def test_watchdog_does_not_regress_to_dynamic_urllib() -> None:
