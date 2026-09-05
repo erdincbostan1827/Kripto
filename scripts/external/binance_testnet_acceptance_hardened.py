@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from app.exchange.binance import BinanceSpotAdapter  # noqa: E402
 from scripts.external import binance_testnet_acceptance as base  # noqa: E402
 
 
@@ -30,9 +31,8 @@ def _is_candidate_filter_rejection(exc: httpx.HTTPStatusError) -> bool:
 def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
     """Ask Binance TESTNET to validate the exact MARKET quantity without creating an order."""
     request = getattr(adapter, "_request", None)
-    decimal_param = getattr(adapter, "_decimal_param", None)
-    if request is None or decimal_param is None:
-        raise RuntimeError("Binance adapter does not expose the signed fixed-point order-test contract")
+    if request is None:
+        raise RuntimeError("Binance adapter does not expose the signed order-test contract")
     client_order_id = "accept-test-" + uuid.uuid4().hex[:16]
     try:
         request(
@@ -42,7 +42,7 @@ def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
                 "symbol": symbol,
                 "side": "BUY",
                 "type": "MARKET",
-                "quantity": decimal_param(quantity),
+                "quantity": BinanceSpotAdapter._decimal_param(quantity),
                 "newClientOrderId": client_order_id,
             },
             signed=True,
