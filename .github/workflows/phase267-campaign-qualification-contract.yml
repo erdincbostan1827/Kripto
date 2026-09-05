@@ -1,17 +1,10 @@
 name: Phase267 Campaign Qualification Contract
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
-      - '.github/workflows/phase267-protected-campaign-qualification.yml'
-      - '.github/workflows/phase267-private-stream-qualification.yml'
-      - '.github/workflows/phase267-campaign-qualification-contract.yml'
-      - 'backend/app/release/campaign_runtime_adapter.py'
-      - 'scripts/external/phase267_campaign_qualification.py'
-      - 'scripts/external/phase267_private_stream_qualification.py'
-      - 'tests/test_phase266_campaign_runtime.py'
   push:
+    branches:
+      - main
+  pull_request:
     paths:
       - '.github/workflows/phase262-final-main-phase245-dispatch.yml'
       - '.github/workflows/phase267-protected-campaign-qualification.yml'
