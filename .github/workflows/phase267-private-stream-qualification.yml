@@ -1,6 +1,10 @@
 name: Phase267 Binance TESTNET Private Stream Qualification
 
 on:
+  workflow_run:
+    workflows:
+      - Phase 266 Protected Campaign Sampling
+    types: [completed]
   schedule:
     - cron: '23 2 * * *'
   workflow_dispatch:
@@ -25,6 +29,9 @@ concurrency:
 
 jobs:
   qualify-private-stream:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, production-acceptance]
     environment: production-acceptance
     timeout-minutes: 30
@@ -43,14 +50,21 @@ jobs:
       - name: Resolve exact current-main candidate
         shell: pwsh
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
           INPUT_CANDIDATE: ${{ inputs.candidate_ref }}
         run: |
           Set-StrictMode -Version Latest
           $ErrorActionPreference = 'Stop'
           $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
           if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve exact current main SHA.' }
-          $candidate = ([string]$env:INPUT_CANDIDATE).Trim().ToLowerInvariant()
-          if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = $head }
+          if ($env:EVENT_NAME -eq 'workflow_run') {
+            $candidate = ([string]$env:WORKFLOW_RUN_SHA).Trim().ToLowerInvariant()
+          } elseif (-not [string]::IsNullOrWhiteSpace([string]$env:INPUT_CANDIDATE)) {
+            $candidate = ([string]$env:INPUT_CANDIDATE).Trim().ToLowerInvariant()
+          } else {
+            $candidate = $head
+          }
           if ($candidate -notmatch '^[0-9a-f]{40}$' -or $candidate -ne $head) {
             throw "Phase267 refuses stale/non-current private qualification candidate. main=$head candidate=$candidate"
           }
