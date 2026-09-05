@@ -52,6 +52,18 @@ def test_phase262_dispatcher_still_requires_all_liveness_gates() -> None:
         assert f'"{name}"' in dispatcher
 
 
+def test_phase262_superseded_dispatchers_are_cancelled_and_fail_closed() -> None:
+    dispatcher = (ROOT / ".github/workflows/phase262-final-main-phase245-dispatch.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "group: phase262-final-main-phase245-dispatch" in dispatcher
+    assert "cancel-in-progress: true" in dispatcher
+    assert 'git/ref/heads/main' in dispatcher
+    assert "Candidate was superseded by newer main SHA" in dispatcher
+    assert "Refusing Phase245 dispatch for superseded SHA" in dispatcher
+    assert "Candidate superseded while waiting for Phase245" in dispatcher
+
+
 def test_truth_boundary_phrase_remains_present() -> None:
     dispatcher = (ROOT / ".github/workflows/phase262-final-main-phase245-dispatch.yml").read_text(
         encoding="utf-8"

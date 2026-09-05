@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: phase262-final-main-phase245-dispatch
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   wait-gates-and-dispatch:
@@ -46,6 +46,12 @@ jobs:
           )
 
           for attempt in $(seq 1 150); do
+            current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$current_main" != "$CANDIDATE_REF" ]]; then
+              echo "Candidate was superseded by newer main SHA: candidate=$CANDIDATE_REF current_main=$current_main" >&2
+              exit 8
+            fi
+
             json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=push&branch=main&per_page=100")"
             all_success=1
 
@@ -87,6 +93,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$current_main" = "$CANDIDATE_REF"
           json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=workflow_dispatch&branch=main&per_page=100")"
           previous="$(jq -r --arg sha "$CANDIDATE_REF" '[.workflow_runs[] | select(.path == ".github/workflows/phase245-binance-testnet-acceptance.yml" and .head_branch == "main" and .event == "workflow_dispatch" and .head_sha == $sha)] | sort_by(.run_number) | last | .run_number // 0' <<<"$json")"
           if [[ ! "$previous" =~ ^[0-9]+$ ]]; then
@@ -100,6 +108,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$current_main" != "$CANDIDATE_REF" ]]; then
+            echo "Refusing Phase245 dispatch for superseded SHA: candidate=$CANDIDATE_REF current_main=$current_main" >&2
+            exit 8
+          fi
           gh workflow run phase245-binance-testnet-acceptance.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
@@ -117,6 +130,11 @@ jobs:
           set -euo pipefail
           previous="$PHASE262_PREVIOUS_PHASE245_RUN_NUMBER"
           for attempt in $(seq 1 540); do
+            current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$current_main" != "$CANDIDATE_REF" ]]; then
+              echo "Candidate superseded while waiting for Phase245: candidate=$CANDIDATE_REF current_main=$current_main" >&2
+              exit 8
+            fi
             json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_REF&event=workflow_dispatch&branch=main&per_page=100")"
             row="$(jq -c --arg sha "$CANDIDATE_REF" --argjson previous "$previous" '[.workflow_runs[] | select(.path == ".github/workflows/phase245-binance-testnet-acceptance.yml" and .head_branch == "main" and .event == "workflow_dispatch" and .head_sha == $sha and .run_number > $previous)] | sort_by(.run_number) | last // empty' <<<"$json")"
             if [[ -z "$row" ]]; then
@@ -146,6 +164,7 @@ jobs:
       - name: Enforce truth boundary
         shell: bash
         run: |
-          echo "This workflow binds hosted final-main gates, campaign contract gates, and a newly dispatched exact-SHA Phase245 PASS to the same main SHA."
+          echo "This workflow binds hosted final-main gates, campaign contract gates, and a newly dispatched exact-SHA Phase245 PASS to the same current main SHA."
+          echo "Superseded main candidates are cancelled or fail closed before dispatch and while waiting for Phase245."
           echo "Phase266 is chained from the successful Phase245 workflow_run and independently re-validates the exact current-main SHA and Phase245 prerequisite."
           echo "Phase245 success is TESTNET acceptance evidence only and never authorizes LIVE trading."
