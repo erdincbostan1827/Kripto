@@ -40,6 +40,9 @@ jobs:
             "Phase 224 Hosted Pre-Acceptance Evidence"
             "Phase 225 Production Build Evidence"
             "Backend Full-Tree Type Debt Ratchet"
+            "Phase265 Campaign Collector Contract"
+            "Phase266 Campaign Runtime Contract"
+            "Phase267 Campaign Qualification Contract"
           )
 
           for attempt in $(seq 1 150); do
@@ -139,23 +142,9 @@ jobs:
           echo "Timed out waiting for newly-dispatched exact-SHA Phase245." >&2
           exit 7
 
-      - name: Dispatch exact-SHA Phase266 protected campaign sampling
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh workflow run phase266-protected-campaign-sampling.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref main \
-            -f candidate_ref="$CANDIDATE_REF" \
-            -f symbol=BTCUSDT \
-            -f timeframe=1h \
-            -f max_cycles=4
-          echo "PHASE262_PHASE266_DISPATCH=ACCEPTED"
-          echo "phase245_prerequisite_run_id=$PHASE262_PHASE245_RUN_ID"
-          echo "candidate_ref=$CANDIDATE_REF"
-
       - name: Enforce truth boundary
         shell: bash
         run: |
-          echo "This workflow binds hosted final-main gates, a newly dispatched exact-SHA Phase245 PASS, and the Phase266 campaign dispatch to the same main SHA."
-          echo "Dispatch success is not Phase266 campaign acceptance evidence and never authorizes LIVE trading."
+          echo "This workflow binds hosted final-main gates, campaign contract gates, and a newly dispatched exact-SHA Phase245 PASS to the same main SHA."
+          echo "Phase266 is chained from the successful Phase245 workflow_run and independently re-validates the exact current-main SHA and Phase245 prerequisite."
+          echo "Phase245 success is TESTNET acceptance evidence only and never authorizes LIVE trading."
