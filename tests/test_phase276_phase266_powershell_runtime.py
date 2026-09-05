@@ -1,12 +1,15 @@
 from pathlib import Path
 
 
-def test_phase266_wrapper_initializes_last_exit_code_before_native_checks() -> None:
+def test_phase266_wrapper_captures_native_success_without_last_exit_seed() -> None:
     text = Path("tools/run_phase266_campaign_runtime.ps1").read_text(encoding="utf-8")
     strict = text.index("Set-StrictMode -Version Latest")
-    seed = text.index("$LASTEXITCODE = 0")
-    first_check = text.index("if ($LASTEXITCODE -ne 0")
-    assert strict < seed < first_check
+    git_capture = text.index("$gitSucceeded = $?")
+    runtime_capture = text.index("$runtimeSucceeded = $?")
+    assert "$LASTEXITCODE = 0" not in text
+    assert strict < git_capture < runtime_capture
+    assert "if (-not $gitSucceeded" in text
+    assert "if (-not $runtimeSucceeded)" in text
 
 
 def test_phase266_wrapper_remains_live_disabled_and_fail_closed() -> None:
