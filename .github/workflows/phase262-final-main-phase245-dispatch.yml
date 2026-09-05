@@ -108,6 +108,7 @@ jobs:
             -f max_notional=15 \
             -f partial_price=AUTO
           echo "PHASE262_PHASE245_DISPATCH=ACCEPTED"
+          echo "Dispatch success is not Phase245 acceptance evidence; only a newer exact-SHA Phase245 SUCCESS is acceptance evidence."
           echo "candidate_ref=$CANDIDATE_REF"
 
       - name: Wait for newly-dispatched exact-SHA Phase245 PASS
