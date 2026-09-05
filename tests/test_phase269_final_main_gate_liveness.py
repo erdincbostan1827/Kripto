@@ -8,6 +8,7 @@ REQUIRED_FINAL_MAIN_WORKFLOWS = (
     ".github/workflows/phase225-production-build-evidence.yml",
     ".github/workflows/phase265-campaign-collector-contract.yml",
     ".github/workflows/phase266-campaign-runtime-contract.yml",
+    ".github/workflows/phase267-campaign-qualification-contract.yml",
 )
 
 
@@ -45,6 +46,7 @@ def test_phase262_dispatcher_still_requires_all_liveness_gates() -> None:
         "Phase 225 Production Build Evidence",
         "Phase265 Campaign Collector Contract",
         "Phase266 Campaign Runtime Contract",
+        "Phase267 Campaign Qualification Contract",
     )
     for name in required_names:
         assert f'"{name}"' in dispatcher
