@@ -23,12 +23,11 @@ class FeeSchedule:
     taker_sell_bps: D = D("10")
 
     def bps_for(self, side: Side, liquidity_role: LiquidityRole) -> D:
-        normalized_side = side.upper()
-        if normalized_side not in {"BUY", "SELL"}:
-            raise ValueError(f"unsupported side: {side}")
-        if liquidity_role not in {"maker", "taker"}:
-            raise ValueError(f"unsupported liquidity role: {liquidity_role}")
-        return getattr(self, f"{liquidity_role}_{normalized_side.lower()}_bps")
+        if side == "BUY":
+            return self.maker_buy_bps if liquidity_role == "maker" else self.taker_buy_bps
+        if side == "SELL":
+            return self.maker_sell_bps if liquidity_role == "maker" else self.taker_sell_bps
+        raise ValueError(f"unsupported side: {side}")
 
 
 @dataclass(frozen=True)
@@ -71,7 +70,13 @@ class TransactionCostModel:
             "impact_coefficient_bps",
             "max_market_impact_bps",
         ):
-            if D(getattr(self, name)) < 0:
+            value = {
+                "spread_bps": self.spread_bps,
+                "slippage_bps": self.slippage_bps,
+                "impact_coefficient_bps": self.impact_coefficient_bps,
+                "max_market_impact_bps": self.max_market_impact_bps,
+            }[name]
+            if value < 0:
                 raise ValueError(f"{name} must be non-negative")
 
     def market_impact_bps(self, notional: D, daily_notional: D | None) -> D:
@@ -95,9 +100,6 @@ class TransactionCostModel:
         liquidity_role: LiquidityRole = "taker",
         daily_notional: D | None = None,
     ) -> CostBreakdown:
-        side = side.upper()  # type: ignore[assignment]
-        if side not in {"BUY", "SELL"}:
-            raise ValueError(f"unsupported side: {side}")
         price = D(reference_price)
         qty = D(quantity)
         if price <= 0:
@@ -111,7 +113,7 @@ class TransactionCostModel:
         adverse_bps = half_spread_bps + self.slippage_bps + impact_bps
         direction = D("1") if side == "BUY" else D("-1")
         executed_price = price * (D("1") + direction * adverse_bps / D("10000"))
-        fee_bps = self.fees.bps_for(side, liquidity_role)  # type: ignore[arg-type]
+        fee_bps = self.fees.bps_for(side, liquidity_role)
         executed_notional = executed_price * qty
         fee = executed_notional * fee_bps / D("10000")
 
