@@ -84,6 +84,9 @@ jobs:
           set -euo pipefail
           workflow='.github/workflows/phase267-protected-campaign-qualification.yml'
           runner='scripts/external/phase267_campaign_qualification.py'
+          grep -F 'Phase 266 Protected Campaign Sampling' "$workflow"
+          grep -F "github.event.workflow_run.conclusion == 'success'" "$workflow"
+          grep -F 'WORKFLOW_RUN_SHA' "$workflow"
           grep -F 'runs-on: [self-hosted, production-acceptance]' "$workflow"
           grep -F 'ref: main' "$workflow"
           grep -F 'actions: read' "$workflow"
@@ -101,6 +104,9 @@ jobs:
           set -euo pipefail
           workflow='.github/workflows/phase267-private-stream-qualification.yml'
           runner='scripts/external/phase267_private_stream_qualification.py'
+          grep -F 'Phase 266 Protected Campaign Sampling' "$workflow"
+          grep -F "github.event.workflow_run.conclusion == 'success'" "$workflow"
+          grep -F 'WORKFLOW_RUN_SHA' "$workflow"
           grep -F 'runs-on: [self-hosted, production-acceptance]' "$workflow"
           grep -F 'ref: main' "$workflow"
           grep -F 'actions: read' "$workflow"
