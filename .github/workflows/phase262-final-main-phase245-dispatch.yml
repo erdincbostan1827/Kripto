@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: phase262-final-main-phase245-dispatch
+  group: phase262-final-main-phase245-dispatch-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -165,6 +165,6 @@ jobs:
         shell: bash
         run: |
           echo "This workflow binds hosted final-main gates, campaign contract gates, and a newly dispatched exact-SHA Phase245 PASS to the same current main SHA."
-          echo "Superseded main candidates are cancelled or fail closed before dispatch and while waiting for Phase245."
+          echo "Each exact main SHA has an independent dispatcher concurrency group; superseded candidates fail closed before dispatch and while waiting for Phase245."
           echo "Phase266 is chained from the successful Phase245 workflow_run and independently re-validates the exact current-main SHA and Phase245 prerequisite."
           echo "Phase245 success is TESTNET acceptance evidence only and never authorizes LIVE trading."
