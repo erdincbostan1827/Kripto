@@ -71,6 +71,10 @@ if ([string]$env:GITHUB_ACTIONS -eq 'true') {
         throw 'Protected GitHub runner identity components are incomplete.'
     }
     $EnvironmentId = 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' -f $runnerName, $runnerOs, $runnerArch
+    $env:ACCEPTANCE_ENVIRONMENT_ID = $EnvironmentId
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:GITHUB_ENV)) {
+        "ACCEPTANCE_ENVIRONMENT_ID=$EnvironmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    }
 }
 if ([string]::IsNullOrWhiteSpace($EnvironmentId)) {
     throw 'ACCEPTANCE_ENVIRONMENT_ID/EnvironmentId is required.'
