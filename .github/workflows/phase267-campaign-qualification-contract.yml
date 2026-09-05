@@ -80,6 +80,9 @@ jobs:
           runner='scripts/external/phase267_campaign_qualification.py'
           grep -F 'runs-on: [self-hosted, production-acceptance]' "$workflow"
           grep -F 'ref: main' "$workflow"
+          grep -F 'actions: read' "$workflow"
+          grep -F 'No successful exact-SHA Phase266 protected campaign sampling exists' "$workflow"
+          grep -F ".github/workflows/phase266-protected-campaign-sampling.yml" "$workflow"
           grep -F 'refuses to create replacement state' "$workflow"
           grep -F 'refuses to create a new telemetry key' "$workflow"
           grep -F -- '--minimum-pairs 100' "$workflow"
@@ -94,6 +97,9 @@ jobs:
           runner='scripts/external/phase267_private_stream_qualification.py'
           grep -F 'runs-on: [self-hosted, production-acceptance]' "$workflow"
           grep -F 'ref: main' "$workflow"
+          grep -F 'actions: read' "$workflow"
+          grep -F 'No successful exact-SHA Phase266 protected campaign sampling exists' "$workflow"
+          grep -F ".github/workflows/phase266-protected-campaign-sampling.yml" "$workflow"
           grep -F -- '--max-notional 5' "$workflow"
           grep -F 'max_notional > Decimal("15")' "$runner"
           grep -F 'from scripts.external.phase266_campaign_runtime import TESTNET_REST, TESTNET_WS_API' "$runner"
