@@ -80,6 +80,13 @@ jobs:
           grep -Fq 'production_ready' .github/workflows/phase266-protected-campaign-sampling.yml
           grep -Fq 'PrivateReconnectDrill' .github/workflows/phase266-protected-campaign-sampling.yml
           grep -Fq 'StrategyLoop' .github/workflows/phase266-protected-campaign-sampling.yml
+          grep -Fq '$venvPython = Join-Path $repoRoot' tools/run_phase266_campaign_runtime.ps1
+          grep -Fq '& $venvPython @arguments' tools/run_phase266_campaign_runtime.ps1
+          if grep -Fq '& python @arguments' tools/run_phase266_campaign_runtime.ps1; then
+            echo 'Phase266 wrapper must not execute protected runtime through the unscoped setup-python interpreter.' >&2
+            exit 1
+          fi
+          grep -A2 -F 'name: Capture fail-closed campaign status' .github/workflows/phase266-protected-campaign-sampling.yml | grep -Fq 'if: always()'
 
   phase266-powershell-syntax:
     name: phase266-powershell-syntax
