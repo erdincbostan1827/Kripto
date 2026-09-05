@@ -1,0 +1,82 @@
+name: Phase277 Branch Patcher
+
+on:
+  push:
+    branches:
+      - phase277-campaign-runner-identity-exit-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: phase277-campaign-runner-identity-exit-hardening
+          fetch-depth: 0
+      - name: Apply exact protected runner identity patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflows = [
+              Path('.github/workflows/phase266-protected-campaign-sampling.yml'),
+              Path('.github/workflows/phase267-private-stream-qualification.yml'),
+              Path('.github/workflows/phase267-protected-campaign-qualification.yml'),
+          ]
+          old = '          $environmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign"'
+          new = '''          $runnerName = ([string]$env:RUNNER_NAME).Trim()
+          $runnerOs = ([string]$env:RUNNER_OS).Trim()
+          $runnerArch = ([string]$env:RUNNER_ARCH).Trim()
+          if ([string]::IsNullOrWhiteSpace($runnerName) -or
+              [string]::IsNullOrWhiteSpace($runnerOs) -or
+              [string]::IsNullOrWhiteSpace($runnerArch)) {
+            throw 'Protected GitHub runner identity components are incomplete.'
+          }
+          $environmentId = 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' -f $runnerName, $runnerOs, $runnerArch'''
+          for path in workflows:
+              text = path.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path}: expected exactly one legacy environment identity expression')
+              path.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+
+          phase266_contract = Path('.github/workflows/phase266-campaign-runtime-contract.yml')
+          text = phase266_contract.read_text(encoding='utf-8')
+          anchor = "          grep -Fq 'StrategyLoop' .github/workflows/phase266-protected-campaign-sampling.yml\n"
+          addition = anchor + "          grep -Fq 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' .github/workflows/phase266-protected-campaign-sampling.yml\n          grep -Fq '$runtimeSucceeded = $?' tools/run_phase266_campaign_runtime.ps1\n          if grep -Fq '$LASTEXITCODE = 0' tools/run_phase266_campaign_runtime.ps1; then\n            echo 'Phase266 wrapper must not seed LASTEXITCODE.' >&2\n            exit 1\n          fi\n"
+          if text.count(anchor) != 1:
+              raise SystemExit('Phase266 contract anchor mismatch')
+          phase266_contract.write_text(text.replace(anchor, addition), encoding='utf-8', newline='\n')
+
+          phase267_contract = Path('.github/workflows/phase267-campaign-qualification-contract.yml')
+          text = phase267_contract.read_text(encoding='utf-8')
+          shadow_anchor = "          grep -F 'refuses to create a new telemetry key' \"$workflow\"\n"
+          shadow_add = shadow_anchor + "          grep -F 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' \"$workflow\"\n          if grep -F 'github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign' \"$workflow\"; then\n            echo 'Ambiguous protected runner identity interpolation is forbidden.' >&2\n            exit 1\n          fi\n"
+          if text.count(shadow_anchor) != 1:
+              raise SystemExit('Phase267 shadow contract anchor mismatch')
+          text = text.replace(shadow_anchor, shadow_add)
+          private_anchor = "          grep -F -- '--max-notional 5' \"$workflow\"\n"
+          private_add = "          grep -F 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' \"$workflow\"\n          if grep -F 'github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign' \"$workflow\"; then\n            echo 'Ambiguous protected runner identity interpolation is forbidden.' >&2\n            exit 1\n          fi\n" + private_anchor
+          if text.count(private_anchor) != 1:
+              raise SystemExit('Phase267 private contract anchor mismatch')
+          phase267_contract.write_text(text.replace(private_anchor, private_add), encoding='utf-8', newline='\n')
+          PY
+      - name: Self-remove patcher and push one atomic branch commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/phase277-branch-patcher.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/phase266-protected-campaign-sampling.yml \
+                  .github/workflows/phase267-private-stream-qualification.yml \
+                  .github/workflows/phase267-protected-campaign-qualification.yml \
+                  .github/workflows/phase266-campaign-runtime-contract.yml \
+                  .github/workflows/phase267-campaign-qualification-contract.yml
+          git commit -m 'Phase 277: bind protected runner identity across campaign workflows'
+          git push origin HEAD:phase277-campaign-runner-identity-exit-hardening
