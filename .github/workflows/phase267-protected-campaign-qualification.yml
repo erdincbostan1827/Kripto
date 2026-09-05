@@ -82,6 +82,34 @@ jobs:
           }
           "PHASE267_CANDIDATE=$candidate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Enforce exact-SHA Phase266 sampling prerequisite
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $candidate = ([string]$env:PHASE267_CANDIDATE).Trim().ToLowerInvariant()
+          $secureToken = ConvertTo-SecureString $env:GH_TOKEN -AsPlainText -Force
+          $headers = @{
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+            'User-Agent' = 'kripto-phase267-shadow'
+          }
+          $runsUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$candidate&status=success&per_page=100"
+          $runs = Invoke-RestMethod -Authentication Bearer -Token $secureToken -Headers $headers -Uri $runsUri
+          $matches = @(
+            $runs.workflow_runs | Where-Object {
+              ([string]$_.head_sha).ToLowerInvariant() -eq $candidate -and
+              ([string]$_.path) -eq '.github/workflows/phase266-protected-campaign-sampling.yml' -and
+              ([string]$_.conclusion) -eq 'success'
+            }
+          )
+          if ($matches.Count -lt 1) {
+            throw "No successful exact-SHA Phase266 protected campaign sampling exists for $candidate"
+          }
+          "PHASE267_PHASE266_RUN_ID=$($matches[0].id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup pinned Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
@@ -179,6 +207,7 @@ jobs:
           }
           "### Phase267 protected qualification" >> $env:GITHUB_STEP_SUMMARY
           "- candidate: ``$($parsed.candidate_sha)``" >> $env:GITHUB_STEP_SUMMARY
+          "- exact-SHA Phase266 prerequisite run: ``$env:PHASE267_PHASE266_RUN_ID``" >> $env:GITHUB_STEP_SUMMARY
           "- kill-switch: ``$($parsed.kill_switch_status)``" >> $env:GITHUB_STEP_SUMMARY
           "- shadow reconciliation: ``$($parsed.reconciliation_status)``" >> $env:GITHUB_STEP_SUMMARY
           "- reconciled pairs: ``$($parsed.reconciled_pairs)`` / 100" >> $env:GITHUB_STEP_SUMMARY
