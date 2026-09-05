@@ -16,6 +16,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# PowerShell does not guarantee that LASTEXITCODE exists before the first native
+# process in every StrictMode host. Seed the automatic variable so fail-closed
+# checks can safely read it; native processes overwrite it with their real code.
+$LASTEXITCODE = 0
 
 function Require-Command {
     param([Parameter(Mandatory = $true)][string]$Name)
