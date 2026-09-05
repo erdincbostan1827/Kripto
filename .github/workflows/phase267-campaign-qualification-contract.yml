@@ -51,7 +51,7 @@ jobs:
               exit 1
             fi
           done
-      - name: Enforce exact-main Phase262 binding and fresh Phase245 handoff
+      - name: Enforce exact-main Phase262 binding and deterministic Phase266 seed
         shell: bash
         run: |
           set -euo pipefail
@@ -66,11 +66,14 @@ jobs:
           grep -F 'PHASE262_PREVIOUS_PHASE245_RUN_NUMBER' "$workflow"
           grep -F '.run_number > $previous' "$workflow"
           grep -F 'PHASE262_PHASE245_EXACT_SHA=PASS' "$workflow"
-          grep -F 'Phase266 is chained from the successful Phase245 workflow_run' "$workflow"
-          if grep -F 'gh workflow run phase266-protected-campaign-sampling.yml' "$workflow"; then
-            echo 'Phase262 must not double-dispatch Phase266; Phase245 workflow_run is the canonical initial trigger.' >&2
-            exit 1
-          fi
+          grep -F 'PHASE262_PHASE245_RUN_ID=$run_id' "$workflow"
+          grep -F 'Refusing Phase266 seed without exact-SHA Phase245 PASS evidence.' "$workflow"
+          grep -F 'Refusing Phase266 seed for superseded SHA' "$workflow"
+          grep -F 'gh workflow run phase266-protected-campaign-sampling.yml' "$workflow"
+          grep -F -- '-f candidate_ref="$CANDIDATE_REF"' "$workflow"
+          grep -F -- '-f max_cycles=4' "$workflow"
+          grep -F 'PHASE274_PHASE266_SEED_DISPATCH=ACCEPTED' "$workflow"
+          grep -F 'Phase245 success and Phase266 sampling are non-LIVE evidence only and never authorize LIVE trading.' "$workflow"
       - name: Enforce non-vacuous live-shadow qualification contract
         shell: bash
         run: |
