@@ -16,10 +16,6 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-# PowerShell does not guarantee that LASTEXITCODE exists before the first native
-# process in every StrictMode host. Seed the automatic variable so fail-closed
-# checks can safely read it; native processes overwrite it with their real code.
-$LASTEXITCODE = 0
 
 function Require-Command {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -29,8 +25,10 @@ function Require-Command {
 }
 
 function Resolve-ExactHeadSha {
-    $value = (& git rev-parse HEAD 2>&1 | Select-Object -First 1).ToString().Trim().ToLowerInvariant()
-    if ($LASTEXITCODE -ne 0 -or $value -notmatch '^[0-9a-f]{40}$') {
+    $rawValue = & git rev-parse HEAD 2>&1
+    $gitSucceeded = $?
+    $value = ($rawValue | Select-Object -First 1).ToString().Trim().ToLowerInvariant()
+    if (-not $gitSucceeded -or $value -notmatch '^[0-9a-f]{40}$') {
         throw "Could not resolve exact git HEAD. Got '$value'."
     }
     return $value
@@ -38,8 +36,10 @@ function Resolve-ExactHeadSha {
 
 Require-Command -Name 'git'
 
-$repoRoot = (& git rev-parse --show-toplevel 2>&1 | Select-Object -First 1).ToString().Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoRoot)) {
+$rawRepoRoot = & git rev-parse --show-toplevel 2>&1
+$repoRootResolved = $?
+$repoRoot = ($rawRepoRoot | Select-Object -First 1).ToString().Trim()
+if (-not $repoRootResolved -or [string]::IsNullOrWhiteSpace($repoRoot)) {
     throw 'Could not resolve repository root.'
 }
 Set-Location -LiteralPath $repoRoot
@@ -61,6 +61,21 @@ if ($CandidateRef -ne $headSha) {
     throw "PHASE266_LOCAL_HEAD_NOT_CANDIDATE: local_head=$headSha candidate=$CandidateRef"
 }
 
+if ([string]$env:GITHUB_ACTIONS -eq 'true') {
+    $runnerName = ([string]$env:RUNNER_NAME).Trim()
+    $runnerOs = ([string]$env:RUNNER_OS).Trim()
+    $runnerArch = ([string]$env:RUNNER_ARCH).Trim()
+    if ([string]::IsNullOrWhiteSpace($runnerName) -or
+        [string]::IsNullOrWhiteSpace($runnerOs) -or
+        [string]::IsNullOrWhiteSpace($runnerArch)) {
+        throw 'Protected GitHub runner identity components are incomplete.'
+    }
+    $EnvironmentId = 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' -f $runnerName, $runnerOs, $runnerArch
+    $env:ACCEPTANCE_ENVIRONMENT_ID = $EnvironmentId
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:GITHUB_ENV)) {
+        "ACCEPTANCE_ENVIRONMENT_ID=$EnvironmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    }
+}
 if ([string]::IsNullOrWhiteSpace($EnvironmentId)) {
     throw 'ACCEPTANCE_ENVIRONMENT_ID/EnvironmentId is required.'
 }
@@ -135,8 +150,9 @@ Write-Host "State directory: $stateFull"
 Write-Host 'LIVE remains disabled; this wrapper exposes no real-order command.'
 
 & $venvPython @arguments
-if ($LASTEXITCODE -ne 0) {
-    throw "PHASE266_PROTECTED_CAMPAIGN_RUNTIME=FAIL (exit=$LASTEXITCODE)"
+$runtimeSucceeded = $?
+if (-not $runtimeSucceeded) {
+    throw 'PHASE266_PROTECTED_CAMPAIGN_RUNTIME=FAIL'
 }
 Write-Host 'PHASE266_PROTECTED_CAMPAIGN_RUNTIME=PASS'
 Write-Host 'PASS means only that the requested protected runtime action completed. Campaign acceptance still depends on the Phase265 blockers reaching zero.'

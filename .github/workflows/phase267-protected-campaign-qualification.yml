@@ -154,7 +154,15 @@ jobs:
           $sha = [Security.Cryptography.SHA256]::Create()
           try { $topologyHash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
           finally { $sha.Dispose() }
-          $environmentId = "github-actions:$env:RUNNER_NAME:$env:RUNNER_OS:$env:RUNNER_ARCH:phase266-protected-campaign"
+          $runnerName = ([string]$env:RUNNER_NAME).Trim()
+          $runnerOs = ([string]$env:RUNNER_OS).Trim()
+          $runnerArch = ([string]$env:RUNNER_ARCH).Trim()
+          if ([string]::IsNullOrWhiteSpace($runnerName) -or
+              [string]::IsNullOrWhiteSpace($runnerOs) -or
+              [string]::IsNullOrWhiteSpace($runnerArch)) {
+            throw 'Protected GitHub runner identity components are incomplete.'
+          }
+          $environmentId = 'github-actions:{0}:{1}:{2}:phase266-protected-campaign' -f $runnerName, $runnerOs, $runnerArch
 
           "PHASE267_STATE_DIR=$stateBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ACCEPTANCE_ENVIRONMENT_ID=$environmentId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
