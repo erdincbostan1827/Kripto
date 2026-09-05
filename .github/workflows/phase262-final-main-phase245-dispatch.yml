@@ -161,10 +161,33 @@ jobs:
           echo "Timed out waiting for newly-dispatched exact-SHA Phase245." >&2
           exit 7
 
+      - name: Seed exact-SHA Phase266 protected campaign sampling
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$current_main" != "$CANDIDATE_REF" ]]; then
+            echo "Refusing Phase266 seed for superseded SHA: candidate=$CANDIDATE_REF current_main=$current_main" >&2
+            exit 8
+          fi
+          if [[ -z "${PHASE262_PHASE245_RUN_ID:-}" ]]; then
+            echo "Refusing Phase266 seed without exact-SHA Phase245 PASS evidence." >&2
+            exit 9
+          fi
+          gh workflow run phase266-protected-campaign-sampling.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f candidate_ref="$CANDIDATE_REF" \
+            -f symbol=BTCUSDT \
+            -f timeframe=1h \
+            -f max_cycles=4
+          echo "PHASE274_PHASE266_SEED_DISPATCH=ACCEPTED"
+          echo "Phase266 seed dispatch only starts PAPER/live-shadow evidence accumulation; it does not make the candidate production-ready and never enables LIVE trading."
+
       - name: Enforce truth boundary
         shell: bash
         run: |
           echo "This workflow binds hosted final-main gates, campaign contract gates, and a newly dispatched exact-SHA Phase245 PASS to the same current main SHA."
-          echo "Each exact main SHA has an independent dispatcher concurrency group; superseded candidates fail closed before dispatch and while waiting for Phase245."
-          echo "Phase266 is chained from the successful Phase245 workflow_run and independently re-validates the exact current-main SHA and Phase245 prerequisite."
-          echo "Phase245 success is TESTNET acceptance evidence only and never authorizes LIVE trading."
+          echo "Each exact main SHA has an independent dispatcher concurrency group; superseded candidates fail closed before Phase245 and Phase266 dispatch."
+          echo "After exact-SHA Phase245 PASS, Phase266 protected campaign sampling is explicitly seeded on the same candidate; scheduled Phase266/Phase267 runs continue evidence accumulation and qualification."
+          echo "Phase245 success and Phase266 sampling are non-LIVE evidence only and never authorize LIVE trading."
