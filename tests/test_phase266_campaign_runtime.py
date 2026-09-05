@@ -184,6 +184,17 @@ def test_runtime_state_never_persists_hmac_secret(tmp_path: Path) -> None:
     assert "api_key" not in text.lower()
 
 
+def test_private_rest_reconciliation_refuses_vacuous_success(tmp_path: Path) -> None:
+    adapter, _, _ = _adapter(tmp_path)
+    with pytest.raises(RuntimeError, match="at least one real account asset"):
+        adapter.record_private_rest_reconciliation({}, observed_at=datetime.now(timezone.utc))
+    with pytest.raises(RuntimeError, match="projected private-stream balance snapshot"):
+        adapter.record_private_rest_reconciliation(
+            {"USDT": (Decimal("1"), Decimal("0"))},
+            observed_at=datetime.now(timezone.utc),
+        )
+
+
 def test_normalize_binance_klines_keeps_only_closed_history() -> None:
     now = datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc)
     start = now - timedelta(minutes=51)
@@ -245,6 +256,57 @@ def test_buy_signal_is_reanchored_to_real_snapshot_and_non_buy_never_opens() -> 
         take_profits=(),
     )
     assert derive_long_intent(hold, _snapshot(), paper_notional=Decimal("10")) is None
+
+
+def test_paper_and_shadow_share_real_observation_identity_and_reconcile(tmp_path: Path) -> None:
+    adapter, collection, _ = _adapter(tmp_path)
+    now = datetime.now(timezone.utc)
+    for index in range(3):
+        snapshot = _snapshot(f"paired-{index}")
+        paper_decision = adapter.record_paper_quote(
+            snapshot,
+            market_regime="RANGE",
+            observed_at=now + timedelta(seconds=index),
+        )
+        adapter.record_live_shadow_observation(
+            snapshot,
+            strategy_decision=paper_decision,
+            observed_at=now + timedelta(seconds=index),
+        )
+
+    assert adapter.record_live_shadow_reconciliation(observed_at=now + timedelta(seconds=4), minimum_pairs=3) == 3
+    rows = load_collection(collection, telemetry_key=KEY, now=now + timedelta(seconds=5))
+    paper_rows = [row for row in rows if row.get("kind") == "paper_sample"]
+    assert {row["payload"]["observation_id"] for row in paper_rows} == {"paired-0", "paired-1", "paired-2"}
+    assert any(row.get("kind") == "live_shadow_reconciliation_pass" for row in rows)
+
+
+def test_shadow_reconciliation_fails_on_real_decision_mismatch(tmp_path: Path) -> None:
+    adapter, _, _ = _adapter(tmp_path)
+    now = datetime.now(timezone.utc)
+    snapshot = _snapshot("mismatch-1")
+    adapter.record_paper_quote(snapshot, market_regime="RANGE", observed_at=now)
+    adapter.record_live_shadow_observation(snapshot, strategy_decision="LONG", observed_at=now)
+    with pytest.raises(RuntimeError, match="mismatches"):
+        adapter.record_live_shadow_reconciliation(observed_at=now + timedelta(seconds=1), minimum_pairs=1)
+
+
+def test_isolated_shadow_kill_switch_drill_does_not_halt_campaign_adapter(tmp_path: Path) -> None:
+    adapter, collection, _ = _adapter(tmp_path)
+    now = datetime.now(timezone.utc)
+    adapter.run_isolated_live_shadow_kill_switch_drill(_snapshot("kill-switch-probe"), observed_at=now)
+    adapter.record_live_shadow_observation(
+        _snapshot("after-probe"),
+        strategy_decision="HOLD",
+        observed_at=now + timedelta(seconds=1),
+    )
+    rows = load_collection(collection, telemetry_key=KEY, now=now + timedelta(seconds=2))
+    assert any(row.get("kind") == "live_shadow_kill_switch_pass" for row in rows)
+    assert any(
+        row.get("kind") == "live_shadow_observation"
+        and row.get("payload", {}).get("observation_id") == "after-probe"
+        for row in rows
+    )
 
 
 def test_phase266_is_pinned_to_spot_testnet_websocket_and_has_no_order_surface() -> None:

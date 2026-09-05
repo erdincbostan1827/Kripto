@@ -33,13 +33,17 @@ function Resolve-ExactHeadSha {
 }
 
 Require-Command -Name 'git'
-Require-Command -Name 'python'
 
 $repoRoot = (& git rev-parse --show-toplevel 2>&1 | Select-Object -First 1).ToString().Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoRoot)) {
     throw 'Could not resolve repository root.'
 }
 Set-Location -LiteralPath $repoRoot
+
+$venvPython = Join-Path $repoRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
+    throw "Locked Phase266 runtime interpreter is missing: $venvPython"
+}
 
 $headSha = Resolve-ExactHeadSha
 if ([string]::IsNullOrWhiteSpace($CandidateRef)) {
@@ -126,7 +130,7 @@ Write-Host "Action: $Action"
 Write-Host "State directory: $stateFull"
 Write-Host 'LIVE remains disabled; this wrapper exposes no real-order command.'
 
-& python @arguments
+& $venvPython @arguments
 if ($LASTEXITCODE -ne 0) {
     throw "PHASE266_PROTECTED_CAMPAIGN_RUNTIME=FAIL (exit=$LASTEXITCODE)"
 }

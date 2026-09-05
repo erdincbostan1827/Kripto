@@ -71,6 +71,14 @@ class ProtectedCampaignRuntimeAdapter:
             raise ValueError("runtime market snapshot is invalid")
         return symbol, bid, ask
 
+    @staticmethod
+    def _observation_id(snapshot: dict[str, Any], *, symbol: str, bid: Decimal, ask: Decimal, observed_at: datetime) -> str:
+        observation_id = str(snapshot.get("observation_id", "")).strip()
+        if observation_id:
+            return observation_id
+        seed = f"{symbol}|{bid}|{ask}|{observed_at.astimezone(timezone.utc).isoformat()}"
+        return hashlib.sha256(seed.encode("utf-8")).hexdigest()
+
     def _emit(self, *, kind: str, payload: dict[str, Any], observed_at: datetime, producer: str) -> dict[str, Any]:
         return append_attested_runtime_event(
             self._collection,
@@ -148,11 +156,15 @@ class ProtectedCampaignRuntimeAdapter:
         observed_at: datetime,
     ) -> None:
         normalized = {str(asset): (D(free), D(locked)) for asset, (free, locked) in rest_balances.items()}
+        if not normalized:
+            raise RuntimeError("private REST reconciliation requires at least one real account asset")
+        if not self._private.balances:
+            raise RuntimeError("private REST reconciliation requires a projected private-stream balance snapshot")
         if normalized != self._private.balances:
             raise RuntimeError("private REST reconciliation does not match projected stream balances")
         self._emit(
             kind="private_rest_reconciliation",
-            payload={"assets_compared": len(normalized), "exact_match": True},
+            payload={"assets_compared": len(normalized), "exact_match": True, "non_vacuous": True},
             observed_at=observed_at,
             producer="PROTECTED_PRIVATE_STREAM_RUNTIME",
         )
@@ -167,6 +179,7 @@ class ProtectedCampaignRuntimeAdapter:
         latency_ms: int = 50,
     ) -> str:
         symbol, bid, ask = self._snapshot(snapshot)
+        observation_id = self._observation_id(snapshot, symbol=symbol, bid=bid, ask=ask, observed_at=observed_at)
         before = len(self._paper.fills)
         if long_intent is not None:
             take_profits = (
@@ -193,11 +206,13 @@ class ProtectedCampaignRuntimeAdapter:
             (abs(fill.price - mid) / mid * D("10000") for fill in new_fills),
             default=D("0"),
         )
-        sample_seed = f"{symbol}|{snapshot.get('observation_id', '')}|{decision}|{len(self._paper.fills)}"
+        sample_seed = f"{symbol}|{observation_id}|{decision}|{len(self._paper.fills)}"
         self._emit(
             kind="paper_sample",
             payload={
                 "sample_id": hashlib.sha256(sample_seed.encode("utf-8")).hexdigest(),
+                "observation_id": observation_id,
+                "symbol": symbol,
                 "decision": decision,
                 "market_regime": str(market_regime).strip().upper(),
                 "market_data_origin": "REAL",
@@ -222,9 +237,7 @@ class ProtectedCampaignRuntimeAdapter:
         decision = str(strategy_decision).strip().upper()
         if decision not in {"LONG", "EXIT", "HOLD"}:
             raise ValueError("spot live-shadow strategy decision must be LONG, EXIT, or HOLD")
-        observation_id = str(snapshot.get("observation_id", "")).strip()
-        if not observation_id:
-            observation_id = hashlib.sha256(f"{symbol}|{bid}|{ask}|{observed_at.isoformat()}".encode("utf-8")).hexdigest()
+        observation_id = self._observation_id(snapshot, symbol=symbol, bid=bid, ask=ask, observed_at=observed_at)
         self._emit(
             kind="live_shadow_observation",
             payload={
@@ -237,6 +250,50 @@ class ProtectedCampaignRuntimeAdapter:
             observed_at=observed_at,
             producer="PROTECTED_LIVE_SHADOW_RUNTIME",
         )
+
+    def record_live_shadow_reconciliation(self, *, observed_at: datetime, minimum_pairs: int = 100) -> int:
+        if minimum_pairs < 1:
+            raise ValueError("live-shadow reconciliation minimum_pairs must be positive")
+        rows = load_collection(self._collection, telemetry_key=self._telemetry_key)
+        paper: dict[str, tuple[str, str]] = {}
+        shadow: dict[str, tuple[str, str]] = {}
+        for row in rows:
+            if row.get("record_type") != "event":
+                continue
+            payload = row.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if row.get("kind") == "paper_sample" and payload.get("market_data_origin") == "REAL":
+                observation_id = str(payload.get("observation_id", "")).strip()
+                if observation_id:
+                    paper[observation_id] = (str(payload.get("symbol", "")), str(payload.get("decision", "")).upper())
+            if row.get("kind") == "live_shadow_observation" and payload.get("market_data_origin") == "REAL":
+                observation_id = str(payload.get("observation_id", "")).strip()
+                if observation_id:
+                    shadow[observation_id] = (
+                        str(payload.get("symbol", "")),
+                        str(payload.get("strategy_decision", "")).upper(),
+                    )
+        paired_ids = sorted(set(paper) & set(shadow))
+        if len(paired_ids) < minimum_pairs:
+            raise RuntimeError(
+                f"live-shadow reconciliation requires at least {minimum_pairs} paired real observations; got {len(paired_ids)}"
+            )
+        mismatches = [observation_id for observation_id in paired_ids if paper[observation_id] != shadow[observation_id]]
+        if mismatches:
+            raise RuntimeError(f"live-shadow reconciliation found {len(mismatches)} PAPER/shadow mismatches")
+        self._emit(
+            kind="live_shadow_reconciliation_pass",
+            payload={
+                "paired_real_observations": len(paired_ids),
+                "mismatches": 0,
+                "minimum_pairs": minimum_pairs,
+                "submit_capability_present": False,
+            },
+            observed_at=observed_at,
+            producer="PROTECTED_LIVE_SHADOW_RUNTIME",
+        )
+        return len(paired_ids)
 
     def test_live_shadow_kill_switch(self, snapshot: dict[str, Any], *, observed_at: datetime) -> None:
         self._shadow_halted = True
@@ -253,6 +310,11 @@ class ProtectedCampaignRuntimeAdapter:
             observed_at=observed_at,
             producer="PROTECTED_LIVE_SHADOW_RUNTIME",
         )
+
+    def run_isolated_live_shadow_kill_switch_drill(self, snapshot: dict[str, Any], *, observed_at: datetime) -> None:
+        """Exercise the real fail-closed shadow halt without halting persistent campaign state."""
+        probe = ProtectedCampaignRuntimeAdapter(collection=self._collection, telemetry_key=self._telemetry_key)
+        probe.test_live_shadow_kill_switch(snapshot, observed_at=observed_at)
 
     def record_profitability_backtest(
         self,
