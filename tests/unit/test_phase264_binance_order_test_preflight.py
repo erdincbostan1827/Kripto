@@ -14,6 +14,7 @@ class FakeAdapter:
     def __init__(self) -> None:
         self.test_calls: list[str] = []
         self.submit_calls = 0
+        self.book_calls: list[str] = []
 
     def get_exchange_info(self):
         return {
@@ -35,6 +36,10 @@ class FakeAdapter:
 
     def get_symbol_filters(self, symbol: str):
         return SimpleNamespace(tick_size=Decimal("0.01"))
+
+    def get_order_book(self, symbol: str):
+        self.book_calls.append(symbol)
+        return {"bids": [["1", "100"]], "asks": [["1", "100"]]}
 
     def _request(self, method, path, params=None, signed=False):
         assert method == "POST"
@@ -83,6 +88,7 @@ def test_auto_selector_skips_market_lot_rejection_without_real_submit(monkeypatc
 
     assert selected[0] == "BBBUSDT"
     assert selected[3] == "USDT"
+    assert adapter.book_calls == ["AAAUSDT", "BBBUSDT"]
     assert adapter.test_calls == ["AAAUSDT", "BBBUSDT"]
     assert adapter.submit_calls == 0
 
