@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import httpx
@@ -54,6 +54,27 @@ def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
     return True
 
 
+def _market_buy_depth_sufficient(adapter, symbol: str, quantity: Decimal) -> bool:
+    """Require visible ask depth to cover the planned TESTNET MARKET BUY quantity."""
+    if quantity <= 0:
+        return False
+    book = adapter.get_order_book(symbol)
+    remaining = quantity
+    for level in book.get("asks", []):
+        if not isinstance(level, (list, tuple)) or len(level) < 2:
+            continue
+        try:
+            level_quantity = Decimal(str(level[1]))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if level_quantity <= 0:
+            continue
+        remaining -= min(remaining, level_quantity)
+        if remaining <= 0:
+            return True
+    return False
+
+
 def _select_auto_target(
     adapter,
     max_notional: Decimal,
@@ -89,6 +110,8 @@ def _select_auto_target(
             )
             if probe["quantity"] > acquisition_quantity:
                 continue
+            if not _market_buy_depth_sufficient(adapter, symbol, acquisition_quantity):
+                continue
             if not _market_order_test(adapter, symbol, acquisition_quantity):
                 continue
             filters = adapter.get_symbol_filters(symbol)
@@ -107,13 +130,13 @@ def _select_auto_target(
         except (KeyError, RuntimeError, ValueError):
             continue
     raise RuntimeError(
-        "no fresh Binance Spot TESTNET symbol satisfies balance, exchange order-test, market-filter, cap-bounded partial-fill preflight"
+        "no fresh Binance Spot TESTNET symbol satisfies balance, ask-depth, exchange order-test, market-filter, cap-bounded partial-fill preflight"
     )
 
 
 def main() -> int:
     # Preserve the canonical scenario implementation and evidence shape; only harden
-    # AUTO candidate selection with Binance's non-executing signed order-test endpoint.
+    # AUTO candidate selection with ask-depth and Binance's non-executing signed order-test preflights.
     base._select_auto_target = _select_auto_target
     return base.main()
 
