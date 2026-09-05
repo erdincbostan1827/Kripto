@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from app.exchange.binance import BinanceSpotAdapter  # noqa: E402
 from scripts.external import binance_testnet_acceptance as base  # noqa: E402
 
 
@@ -41,7 +42,7 @@ def _market_order_test(adapter, symbol: str, quantity: Decimal) -> bool:
                 "symbol": symbol,
                 "side": "BUY",
                 "type": "MARKET",
-                "quantity": str(quantity),
+                "quantity": BinanceSpotAdapter._decimal_param(quantity),
                 "newClientOrderId": client_order_id,
             },
             signed=True,

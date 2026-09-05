@@ -21,6 +21,13 @@ class BinanceSpotAdapter(ExchangeAdapter):
         self._info = None
         self.last_rate_limit_observation = {}
 
+    @staticmethod
+    def _decimal_param(value: Decimal) -> str:
+        """Serialize Binance decimal parameters as plain fixed-point text, never exponent notation."""
+        if not value.is_finite():
+            raise ValueError("Binance decimal parameter must be finite")
+        return format(value, "f")
+
     def _request(self, method, path, params=None, signed=False, mutation=False, api_key_only=False):
         params = dict(params or {})
         headers = {}
@@ -150,14 +157,14 @@ class BinanceSpotAdapter(ExchangeAdapter):
             "symbol": intent.symbol,
             "side": intent.side,
             "type": order_type,
-            "quantity": str(intent.quantity),
+            "quantity": self._decimal_param(intent.quantity),
             "newClientOrderId": intent.client_order_id or intent.intent_id,
         }
         if intent.price is not None:
-            params["price"] = str(intent.price)
+            params["price"] = self._decimal_param(intent.price)
             params["timeInForce"] = "GTC"
         if intent.stop_price is not None:
-            params["stopPrice"] = str(intent.stop_price)
+            params["stopPrice"] = self._decimal_param(intent.stop_price)
         return self._map_order(self._request("POST", "/api/v3/order", params, signed=True, mutation=True), fallback=intent)
 
     def cancel_order(self, symbol, order_id):
