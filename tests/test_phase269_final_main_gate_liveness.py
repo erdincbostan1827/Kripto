@@ -14,9 +14,11 @@ REQUIRED_FINAL_MAIN_WORKFLOWS = (
 def _push_block(path: str) -> str:
     text = (ROOT / path).read_text(encoding="utf-8")
     assert "\non:\n" in text
-    assert "\n  push:\n" in text
-    assert "\n  pull_request:\n" in text
-    return text.split("\n  push:\n", 1)[1].split("\n  pull_request:\n", 1)[0]
+    push_marker = "  push:\n"
+    pull_request_marker = "  pull_request:\n"
+    start = text.index(push_marker, text.index("\non:\n")) + len(push_marker)
+    end = text.index(pull_request_marker, start)
+    return text[start:end]
 
 
 def test_phase262_required_gates_are_not_path_filtered_on_push() -> None:
